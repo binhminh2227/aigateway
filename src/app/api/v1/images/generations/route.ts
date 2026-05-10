@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const upstream = await proxyToTcdmx(
-      "/images/generations",
+      "/v1/images/generations",
       "POST",
       body,
       Object.fromEntries(req.headers.entries()),

@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const upstream = await proxyToTcdmx(
-      "/chat/completions",
+      "/v1/chat/completions",
       "POST",
       proxyBody,
       Object.fromEntries(req.headers.entries()),
