@@ -48,3 +48,4 @@ data/
 next-env.d.ts
 
 /src/generated/prisma
+.deploy.py
