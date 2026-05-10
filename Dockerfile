@@ -9,11 +9,13 @@ RUN npm ci
 FROM node:20-alpine AS builder
 WORKDIR /app
 RUN apk add --no-cache libc6-compat python3 make g++
-ENV DATABASE_URL=file:/tmp/build.db
+ENV DATABASE_URL=file:/app/template.db
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
 RUN npm run build
+# Bake an empty schema'd DB into the image
+RUN npx prisma db push --accept-data-loss
 
 FROM node:20-alpine AS runner
 WORKDIR /app
@@ -28,11 +30,9 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.mjs ./prisma.config.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/template.db ./template.db
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=deps     --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
-COPY --from=deps     --chown=nextjs:nodejs /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 COPY --from=deps     --chown=nextjs:nodejs /app/node_modules/bcryptjs ./node_modules/bcryptjs
@@ -44,4 +44,6 @@ USER nextjs
 EXPOSE 3000
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["sh", "-c", "node node_modules/prisma/build/index.js db push --accept-data-loss || true; node server.js"]
+# Init DB from baked template if missing, then start.
+# (For schema upgrades, delete data/prod.db or use a migration job.)
+CMD ["sh", "-c", "[ -f /app/data/prod.db ] || cp /app/template.db /app/data/prod.db; node server.js"]
