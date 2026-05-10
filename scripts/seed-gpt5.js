@@ -1,8 +1,13 @@
 // Seed default pricing for GPT-5 family models. Run once on VPS:
 //   docker compose exec -T aigateway node scripts/seed-gpt5.js
-// Safe to re-run — uses upsert.
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+// Safe to re-run — idempotent upsert via better-sqlite3.
+const Database = require("better-sqlite3");
+const path = require("path");
+const { v4: uuidv4 } = require("uuid");
+
+const dbUrl = process.env.DATABASE_URL || "file:./dev.db";
+const dbPath = path.resolve(process.cwd(), dbUrl.replace(/^file:/, ""));
+const db = new Database(dbPath);
 
 const MODELS = [
   { model: "gpt-5.5",        tcdmxInputPrice: 5.0,  tcdmxOutputPrice: 15.0, tcdmxCachePrice: 0.5 },
@@ -12,31 +17,28 @@ const MODELS = [
   { model: "gpt-5.2",        tcdmxInputPrice: 1.0,  tcdmxOutputPrice: 3.0,  tcdmxCachePrice: 0.10 },
 ];
 
-async function main() {
-  for (const m of MODELS) {
-    await prisma.modelPricing.upsert({
-      where: { model: m.model },
-      create: {
-        model: m.model,
-        inputPrice: m.tcdmxInputPrice,
-        outputPrice: m.tcdmxOutputPrice,
-        tcdmxInputPrice: m.tcdmxInputPrice,
-        tcdmxOutputPrice: m.tcdmxOutputPrice,
-        tcdmxCachePrice: m.tcdmxCachePrice,
-        tcdmxTier: 2.0,
-        markup: 1.3,
-        enabled: true,
-      },
-      update: {
-        tcdmxInputPrice: m.tcdmxInputPrice,
-        tcdmxOutputPrice: m.tcdmxOutputPrice,
-        tcdmxCachePrice: m.tcdmxCachePrice,
-        enabled: true,
-      },
-    });
-    console.log("✓ seeded", m.model);
-  }
-  console.log("Done. Adjust prices in Admin → Pricing if needed.");
-}
+const findStmt = db.prepare("SELECT id FROM ModelPricing WHERE model = ?");
+const insertStmt = db.prepare(`
+  INSERT INTO ModelPricing (id, model, inputPrice, outputPrice, tcdmxInputPrice, tcdmxOutputPrice, tcdmxCachePrice, tcdmxTier, markup, enabled, updatedAt)
+  VALUES (?, ?, ?, ?, ?, ?, ?, 2.0, 1.3, 1, ?)
+`);
+const updateStmt = db.prepare(`
+  UPDATE ModelPricing
+  SET tcdmxInputPrice = ?, tcdmxOutputPrice = ?, tcdmxCachePrice = ?, enabled = 1, updatedAt = ?
+  WHERE model = ?
+`);
 
-main().catch(e => { console.error(e); process.exit(1); }).finally(() => prisma.$disconnect());
+const now = new Date().toISOString();
+for (const m of MODELS) {
+  const row = findStmt.get(m.model);
+  if (row) {
+    updateStmt.run(m.tcdmxInputPrice, m.tcdmxOutputPrice, m.tcdmxCachePrice, now, m.model);
+    console.log("↻ updated", m.model);
+  } else {
+    const id = uuidv4().replace(/-/g, "");
+    insertStmt.run(id, m.model, m.tcdmxInputPrice, m.tcdmxOutputPrice, m.tcdmxInputPrice, m.tcdmxOutputPrice, m.tcdmxCachePrice, now);
+    console.log("✓ inserted", m.model);
+  }
+}
+console.log("Done. Adjust prices in Admin → Pricing if needed.");
+db.close();
