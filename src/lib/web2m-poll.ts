@@ -9,26 +9,21 @@ async function getSettings(keys: string[]): Promise<Record<string, string>> {
 async function fetchWeb2mHistory(token: string, password: string, account: string, bank: string): Promise<{
   id: string; amount: number; content: string; when: string;
 }[]> {
+  // Web2M URL spec: /historyapi{mb|acb}/{password}/{account}/{token}
   const bankPath = bank === "acb" ? "acb" : "mb";
-  const res = await fetch(`https://api.web2m.com/historyapi${bankPath}/v2/${account}/0`, {
-    method: "GET",
-    headers: {
-      "Authorization": `Bearer ${token}`,
-      "X-Password": password,
-      "Content-Type": "application/json",
-    },
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!res.ok) throw new Error(`Web2M API ${res.status}: ${await res.text()}`);
+  const url = `https://api.web2m.com/historyapi${bankPath}/${encodeURIComponent(password)}/${encodeURIComponent(account)}/${encodeURIComponent(token)}`;
+  const res = await fetch(url, { method: "GET", signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`Web2M API ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const data = await res.json();
-  if (data && data.status === false) throw new Error(`Web2M: ${data.msg || "invalid token"}`);
-  const list = Array.isArray(data) ? data : (data.transactions || data.data || data.transactionHistoryList || []);
+  if (data && data.success === false) throw new Error(`Web2M: ${data.message || data.msg || "request failed"}`);
+  if (data && data.status === false) throw new Error(`Web2M: ${data.msg || data.message || "request failed"}`);
+  const list = Array.isArray(data) ? data : (data.data || data.transactions || []);
   if (!Array.isArray(list)) throw new Error(`Web2M unexpected response: ${JSON.stringify(data).slice(0, 200)}`);
   return list.map((tx: Record<string, unknown>) => ({
-    id: String(tx.id || tx.transactionId || tx.referenceNumber || ""),
-    amount: Math.abs(Number(tx.amount || tx.creditAmount || 0)),
-    content: String(tx.description || tx.content || tx.transactionContent || ""),
-    when: String(tx.transactionDate || tx.when || tx.createdAt || ""),
+    id: String(tx.refNo || tx.id || tx.transactionId || tx.referenceNumber || ""),
+    amount: Math.abs(Number(tx.creditAmount || tx.amount || 0)),
+    content: String(tx.description || tx.content || ""),
+    when: String(tx.transactionDate || tx.postingDate || tx.when || ""),
   }));
 }
 
