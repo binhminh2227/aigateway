@@ -536,9 +536,9 @@ export default function ApiKeysPage() {
               <tbody className="divide-y divide-gray-800">
                 {filtered.map(k => {
                   const stat = usageStats[k.id] || { today: 0, last30d: 0 };
-                  const quota = 100;
+                  const quota = k.quotaLimit ?? 0;
                   const quotaUsed = stat.last30d;
-                  const quotaPct = Math.min(100, (quotaUsed / quota) * 100);
+                  const quotaPct = quota > 0 ? Math.min(100, (quotaUsed / quota) * 100) : 0;
                   return (
                     <tr key={k.id} className="hover:bg-gray-800/30">
                       <td className="px-4 py-4">
@@ -571,7 +571,7 @@ export default function ApiKeysPage() {
                           </div>
                           <div className="flex gap-2">
                             <span className="text-gray-500">Quota:</span>
-                            <span className="text-white font-medium">${quotaUsed.toFixed(2)} / ${quota}.00</span>
+                            <span className="text-white font-medium">${quotaUsed.toFixed(2)} / {quota > 0 ? `$${quota.toFixed(2)}` : "∞"}</span>
                           </div>
                           <div className="w-32 bg-gray-700 rounded-full h-1 mt-1">
                             <div className="bg-teal-500 h-1 rounded-full" style={{ width: `${quotaPct}%` }} />
