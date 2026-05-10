@@ -440,24 +440,14 @@ export default function BillingPage() {
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
               <p className="text-gray-300 text-sm font-medium mb-3">{t.billing.method}</p>
               <div className="flex flex-wrap gap-2 mb-0">
-                {hasWeb2m && (
-                  <button type="button" onClick={() => setPayMethod("web2m")}
+                {(hasWeb2m || hasBank) && (
+                  <button type="button" onClick={() => setPayMethod(hasWeb2m ? "web2m" : "bank")}
                     className={`px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${
-                      payMethod === "web2m"
+                      (payMethod === "web2m" || payMethod === "bank")
                         ? "border-teal-500 bg-teal-900/40 text-teal-300"
                         : "border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white"
                     }`}>
-                    ⚡ Chuyển khoản tự động
-                  </button>
-                )}
-                {hasBank && (
-                  <button type="button" onClick={() => setPayMethod("bank")}
-                    className={`px-4 py-2.5 rounded-lg border text-sm font-medium transition-all ${
-                      payMethod === "bank"
-                        ? "border-teal-500 bg-teal-900/40 text-teal-300"
-                        : "border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white"
-                    }`}>
-                    🏦 {t.billing.bank}
+                    🏦 {payConfig.bank_name || t.billing.bank}
                   </button>
                 )}
                 {hasUsdt && (
