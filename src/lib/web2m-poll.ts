@@ -21,7 +21,9 @@ async function fetchWeb2mHistory(token: string, password: string, account: strin
   });
   if (!res.ok) throw new Error(`Web2M API ${res.status}: ${await res.text()}`);
   const data = await res.json();
-  const list = data.transactions || data.data || data || [];
+  if (data && data.status === false) throw new Error(`Web2M: ${data.msg || "invalid token"}`);
+  const list = Array.isArray(data) ? data : (data.transactions || data.data || data.transactionHistoryList || []);
+  if (!Array.isArray(list)) throw new Error(`Web2M unexpected response: ${JSON.stringify(data).slice(0, 200)}`);
   return list.map((tx: Record<string, unknown>) => ({
     id: String(tx.id || tx.transactionId || tx.referenceNumber || ""),
     amount: Math.abs(Number(tx.amount || tx.creditAmount || 0)),

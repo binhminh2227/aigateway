@@ -17,8 +17,8 @@ export async function GET() {
 
   const rows = await prisma.setting.findMany({ where: { key: { in: PUBLIC_KEYS } } });
   const map = Object.fromEntries(rows.map((r: { key: string; value: string }) => [r.key, r.value]));
-  // Hide bank info from end users when manual bank toggle is off
-  if (map.bank_manual_enabled !== "1") {
+  // Hide bank info from end users only when manual bank toggle is explicitly OFF
+  if (map.bank_manual_enabled === "0") {
     for (const k of BANK_KEYS) delete map[k];
   }
   return NextResponse.json(map);
