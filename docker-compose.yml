@@ -12,6 +12,7 @@ services:
       NEXTAUTH_URL: "${NEXTAUTH_URL}"
       TCDMX_API_KEY: "${TCDMX_API_KEY}"
       TCDMX_BASE_URL: "${TCDMX_BASE_URL:-https://tcdmx.com}"
+      KEY_ENCRYPTION_SECRET: "${KEY_ENCRYPTION_SECRET}"
       SMTP_HOST: "${SMTP_HOST}"
       SMTP_PORT: "${SMTP_PORT:-587}"
       SMTP_SECURE: "${SMTP_SECURE:-false}"
