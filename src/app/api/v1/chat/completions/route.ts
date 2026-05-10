@@ -22,27 +22,22 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Enforce IP whitelist / blacklist
-  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-    || req.headers.get("x-real-ip")
-    || "";
-  if (apiKey.ipBlacklist) {
-    const blacklist = apiKey.ipBlacklist.split(",").map(s => s.trim()).filter(Boolean);
-    if (blacklist.includes(clientIp)) {
-      return NextResponse.json(
-        { error: { message: "IP blocked", type: "authentication_error", code: "ip_blocked" } },
-        { status: 403 }
-      );
-    }
+  // Enforce IP whitelist / blacklist (supports CIDR + comma/newline separated)
+  const { getClientIp, parseAclList, ipMatchesAny } = await import("@/lib/ip-acl");
+  const clientIp = getClientIp(req);
+  const blacklist = parseAclList(apiKey.ipBlacklist);
+  if (blacklist.length > 0 && ipMatchesAny(clientIp, blacklist)) {
+    return NextResponse.json(
+      { error: { message: "IP blocked", type: "authentication_error", code: "ip_blocked" } },
+      { status: 403 }
+    );
   }
-  if (apiKey.ipWhitelist) {
-    const whitelist = apiKey.ipWhitelist.split(",").map(s => s.trim()).filter(Boolean);
-    if (whitelist.length > 0 && !whitelist.includes(clientIp)) {
-      return NextResponse.json(
-        { error: { message: "IP not allowed", type: "authentication_error", code: "ip_not_allowed" } },
-        { status: 403 }
-      );
-    }
+  const whitelist = parseAclList(apiKey.ipWhitelist);
+  if (whitelist.length > 0 && !ipMatchesAny(clientIp, whitelist)) {
+    return NextResponse.json(
+      { error: { message: "IP not allowed", type: "authentication_error", code: "ip_not_allowed" } },
+      { status: 403 }
+    );
   }
 
   // Enforce API key expiry

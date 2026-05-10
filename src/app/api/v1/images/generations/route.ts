@@ -22,17 +22,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-    || req.headers.get("x-real-ip") || "";
-  if (apiKey.ipBlacklist) {
-    const list = apiKey.ipBlacklist.split(",").map(s => s.trim()).filter(Boolean);
-    if (list.includes(clientIp)) return NextResponse.json({ error: { message: "IP blocked" } }, { status: 403 });
+  const { getClientIp, parseAclList, ipMatchesAny } = await import("@/lib/ip-acl");
+  const clientIp = getClientIp(req);
+  const blacklist = parseAclList(apiKey.ipBlacklist);
+  if (blacklist.length > 0 && ipMatchesAny(clientIp, blacklist)) {
+    return NextResponse.json({ error: { message: "IP blocked" } }, { status: 403 });
   }
-  if (apiKey.ipWhitelist) {
-    const list = apiKey.ipWhitelist.split(",").map(s => s.trim()).filter(Boolean);
-    if (list.length > 0 && !list.includes(clientIp)) {
-      return NextResponse.json({ error: { message: "IP not allowed" } }, { status: 403 });
-    }
+  const whitelist = parseAclList(apiKey.ipWhitelist);
+  if (whitelist.length > 0 && !ipMatchesAny(clientIp, whitelist)) {
+    return NextResponse.json({ error: { message: "IP not allowed" } }, { status: 403 });
   }
   if (apiKey.expiresAt && apiKey.expiresAt < new Date()) {
     return NextResponse.json({ error: { message: "API key expired" } }, { status: 401 });
