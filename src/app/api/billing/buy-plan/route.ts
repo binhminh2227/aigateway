@@ -6,12 +6,12 @@ import { prisma } from "@/lib/db";
 async function uniquePayCode(): Promise<string> {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   for (let i = 0; i < 10; i++) {
-    let code = "GOI";
+    let code = "AIGW";
     for (let j = 0; j < 6; j++) code += chars[Math.floor(Math.random() * chars.length)];
     const exists = await prisma.transaction.findFirst({ where: { payCode: code } });
     if (!exists) return code;
   }
-  return "GOI" + Date.now().toString(36).toUpperCase().slice(-6);
+  return "AIGW" + Date.now().toString(36).toUpperCase().slice(-6);
 }
 
 export async function POST(req: NextRequest) {

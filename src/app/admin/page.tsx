@@ -45,6 +45,10 @@ export default function AdminPage() {
     web2m_enabled: "0", web2m_access_token: "",
     web2m_bank_bin: "", web2m_vietqr: "1",
     usd_to_vnd: "",
+    web2m_active_bank: "mb",
+    web2m_mb_token: "", web2m_mb_password: "", web2m_mb_account: "",
+    web2m_acb_token: "", web2m_acb_password: "", web2m_acb_account: "",
+    bank_manual_enabled: "1",
   });
   const [pollingNow, setPollingNow] = useState(false);
   const [pollResult, setPollResult] = useState<string | null>(null);
@@ -167,6 +171,14 @@ export default function AdminPage() {
           web2m_bank_bin: d.web2m_bank_bin || "",
           web2m_vietqr: d.web2m_vietqr || "1",
           usd_to_vnd: d.usd_to_vnd || "",
+          web2m_active_bank: d.web2m_active_bank || "mb",
+          web2m_mb_token: d.web2m_mb_token || "",
+          web2m_mb_password: d.web2m_mb_password || "",
+          web2m_mb_account: d.web2m_mb_account || "",
+          web2m_acb_token: d.web2m_acb_token || "",
+          web2m_acb_password: d.web2m_acb_password || "",
+          web2m_acb_account: d.web2m_acb_account || "",
+          bank_manual_enabled: d.bank_manual_enabled || "1",
         }));
       }).catch(console.error).finally(done);
     } else if (tab === "api") {
@@ -1474,12 +1486,12 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Web2M Webhook */}
+            {/* Web2M Auto Poll */}
             <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden mb-4">
               <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
                 <div>
-                  <h3 className="text-white font-medium flex items-center gap-2">⚡ Web2M Webhook</h3>
-                  <p className="text-gray-500 text-xs mt-0.5">Tự động cộng số dư khi nhận chuyển khoản — real-time, không cần poll</p>
+                  <h3 className="text-white font-medium flex items-center gap-2">⚡ Đối soát tự động (Web2M Poll 3s)</h3>
+                  <p className="text-gray-500 text-xs mt-0.5">Server tự pull lịch sử ngân hàng mỗi 3s, match mã <span className="font-mono text-teal-400">AIGW...</span> rồi cộng tiền tự động</p>
                 </div>
                 <div
                   onClick={() => setPaymentSettings(p => ({ ...p, web2m_enabled: p.web2m_enabled === "1" ? "0" : "1" }))}
@@ -1489,50 +1501,106 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="p-5 space-y-4">
-                {/* Step 1: Access Token */}
-                <div>
-                  <label className="block text-gray-300 text-xs font-semibold mb-1">
-                    Bước 1 — Access Token
-                    <span className="text-gray-500 font-normal ml-1">(lấy tại api.web2m.com → Đăng nhập → copy token trong header)</span>
-                  </label>
-                  <input
-                    type="password"
-                    value={paymentSettings.web2m_access_token}
-                    onChange={e => setPaymentSettings(p => ({ ...p, web2m_access_token: e.target.value }))}
-                    placeholder="eyJ0eXAiOiJKV1Qi..."
-                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm font-mono focus:border-purple-500 focus:outline-none"
-                  />
-                  <p className="text-gray-600 text-xs mt-1">Web2M gửi token này trong header mỗi webhook — dùng để xác minh request hợp lệ.</p>
-                </div>
-
-                {/* Step 2: Webhook URL */}
-                <div>
-                  <label className="block text-gray-300 text-xs font-semibold mb-1">
-                    Bước 2 — Webhook URL
-                    <span className="text-gray-500 font-normal ml-1">(copy → dán vào trang Cấu hình Webhook của Web2M)</span>
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      readOnly
-                      value={typeof window !== "undefined" ? `${window.location.origin}/api/payment/web2m/callback` : "/api/payment/web2m/callback"}
-                      className="flex-1 bg-gray-800/50 border border-gray-700 text-teal-400 rounded-lg px-3 py-2.5 text-sm font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => navigator.clipboard.writeText(`${window.location.origin}/api/payment/web2m/callback`)}
-                      className="px-4 py-2 bg-teal-800/40 border border-teal-700/50 text-teal-400 hover:bg-teal-700/50 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      Copy
-                    </button>
+              {paymentSettings.web2m_enabled === "1" && (
+                <div className="p-5 space-y-4">
+                  <div>
+                    <label className="block text-gray-300 text-xs font-semibold mb-1">Ngân hàng đang dùng</label>
+                    <select value={paymentSettings.web2m_active_bank}
+                      onChange={e => setPaymentSettings(p => ({ ...p, web2m_active_bank: e.target.value }))}
+                      className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm">
+                      <option value="mb">MB Bank</option>
+                      <option value="acb">ACB</option>
+                    </select>
                   </div>
-                  <p className="text-gray-600 text-xs mt-1">Vào api.web2m.com → Cấu hình Webhook → Thêm mới → dán URL trên vào ô Webhook URL.</p>
-                </div>
 
-                {/* Bank info for users */}
-                <div className="bg-gray-800/50 rounded-xl p-4">
-                  <p className="text-white text-xs font-semibold mb-1">Bước 3 — Thông tin ngân hàng hiển thị cho user</p>
-                  <p className="text-gray-500 text-xs mb-3">User sẽ thấy thông tin này khi chọn chuyển khoản</p>
+                  {paymentSettings.web2m_active_bank === "mb" ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-gray-400 text-xs mb-1">MB — Token</label>
+                        <input type="password" value={paymentSettings.web2m_mb_token}
+                          onChange={e => setPaymentSettings(p => ({ ...p, web2m_mb_token: e.target.value }))}
+                          placeholder="Bearer token Web2M"
+                          className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm font-mono focus:border-purple-500 focus:outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-xs mb-1">MB — Password</label>
+                        <input type="password" value={paymentSettings.web2m_mb_password}
+                          onChange={e => setPaymentSettings(p => ({ ...p, web2m_mb_password: e.target.value }))}
+                          placeholder="X-Password (nếu có)"
+                          className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm font-mono focus:border-purple-500 focus:outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-xs mb-1">MB — Số tài khoản</label>
+                        <input value={paymentSettings.web2m_mb_account}
+                          onChange={e => setPaymentSettings(p => ({ ...p, web2m_mb_account: e.target.value }))}
+                          placeholder="0868222252"
+                          className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm font-mono focus:border-purple-500 focus:outline-none" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-gray-400 text-xs mb-1">ACB — Token</label>
+                        <input type="password" value={paymentSettings.web2m_acb_token}
+                          onChange={e => setPaymentSettings(p => ({ ...p, web2m_acb_token: e.target.value }))}
+                          placeholder="Bearer token Web2M"
+                          className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm font-mono focus:border-purple-500 focus:outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-xs mb-1">ACB — Password</label>
+                        <input type="password" value={paymentSettings.web2m_acb_password}
+                          onChange={e => setPaymentSettings(p => ({ ...p, web2m_acb_password: e.target.value }))}
+                          placeholder="X-Password (nếu có)"
+                          className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm font-mono focus:border-purple-500 focus:outline-none" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-xs mb-1">ACB — Số tài khoản</label>
+                        <input value={paymentSettings.web2m_acb_account}
+                          onChange={e => setPaymentSettings(p => ({ ...p, web2m_acb_account: e.target.value }))}
+                          placeholder="123456789"
+                          className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm font-mono focus:border-purple-500 focus:outline-none" />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3">
+                    <button type="button"
+                      onClick={async () => {
+                        setPollingNow(true); setPollResult(null);
+                        try {
+                          const r = await fetch("/api/payment/web2m/poll", { method: "POST" });
+                          const d = await r.json();
+                          setPollResult(r.ok ? `${d.message} (đã check ${d.checked} giao dịch)` : `Lỗi: ${d.error || d.message}`);
+                        } catch (e) { setPollResult(`Lỗi: ${(e as Error).message}`); }
+                        finally { setPollingNow(false); }
+                      }}
+                      disabled={pollingNow}
+                      className="px-4 py-2 bg-teal-800/40 border border-teal-700/50 text-teal-400 hover:bg-teal-700/50 disabled:opacity-50 rounded-lg text-sm font-medium">
+                      {pollingNow ? "Đang test..." : "🧪 Test poll ngay"}
+                    </button>
+                    {pollResult && <span className="text-xs text-gray-300">{pollResult}</span>}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Manual bank info — toggleable */}
+            <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden mb-4">
+              <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
+                <div>
+                  <h3 className="text-white font-medium flex items-center gap-2">🏦 Thông tin ngân hàng hiển thị cho user</h3>
+                  <p className="text-gray-500 text-xs mt-0.5">Khi tắt: ẩn hoàn toàn khỏi trang Nạp tiền (chỉ còn USDT/redeem)</p>
+                </div>
+                <div
+                  onClick={() => setPaymentSettings(p => ({ ...p, bank_manual_enabled: p.bank_manual_enabled === "1" ? "0" : "1" }))}
+                  className={`w-11 h-6 rounded-full relative transition-colors cursor-pointer flex-shrink-0 ${paymentSettings.bank_manual_enabled === "1" ? "bg-teal-600" : "bg-gray-700"}`}
+                >
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${paymentSettings.bank_manual_enabled === "1" ? "left-6" : "left-1"}`} />
+                </div>
+              </div>
+
+              {paymentSettings.bank_manual_enabled === "1" && (
+                <div className="p-5">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-gray-500 text-xs uppercase tracking-wider mb-1.5">Tên ngân hàng</label>
@@ -1574,7 +1642,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Preview */}

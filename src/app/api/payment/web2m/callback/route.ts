@@ -71,8 +71,8 @@ export async function POST(req: NextRequest) {
     const wAmount = parseInt(String(wTx.amount).replace(/\D/g, ""), 10);
     const wDesc = String(wTx.description || "").toUpperCase();
 
-    // Primary match: payCode (NAP/GOI/UPG + 6 chars) in description
-    const codeMatch = wDesc.match(/(?:NAP|GOI|UPG)[A-Z0-9]{6}/);
+    // Primary match: payCode (AIGW + 6 chars) in description
+    const codeMatch = wDesc.match(/AIGW[A-Z0-9]{6}/);
     if (codeMatch) {
       const payCode = codeMatch[0];
       const tx = await prisma.transaction.findFirst({

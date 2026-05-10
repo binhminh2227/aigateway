@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 
 function genPayCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "NAP";
+  let code = "AIGW";
   for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
   return code;
 }
@@ -17,7 +17,7 @@ async function uniquePayCode(): Promise<string> {
     if (!exists) return code;
   }
   // fallback: append timestamp suffix to guarantee uniqueness
-  return "NAP" + Date.now().toString(36).toUpperCase().slice(-6);
+  return "AIGW" + Date.now().toString(36).toUpperCase().slice(-6);
 }
 
 export async function GET(req: NextRequest) {
