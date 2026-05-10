@@ -6,8 +6,26 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLang, LangToggle } from "@/lib/i18n";
 
-interface Stats { totalUsers: number; activeKeys: number; totalRevenue: number; pendingTopups: number; todayRevenue?: number; todayRequests?: number; }
-interface Analytics { totalTopup: number; totalPlan: number; totalBalance: number; totalUsers: number; bannedUsers: number; topModels: { model: string; cost: number }[]; weekRevenue: { date: string; revenue: number; requests: number }[]; }
+interface Analytics {
+  totalTopup: number; totalPlan: number; totalBalance: number; totalUsers: number; bannedUsers: number;
+  topModels: { model: string; cost: number; tcdmxCost: number; requests: number }[];
+  weekRevenue: { date: string; revenue: number; requests: number }[];
+  day30Revenue: { date: string; revenue: number; tcdmxCost: number; requests: number }[];
+  hourlyToday: { hour: string; revenue: number; requests: number }[];
+  paymentMethods: { method: string; amount: number; count: number }[];
+  topUsers: { userId: string; email: string; cost: number; requests: number }[];
+  planDistribution: { planId: string | null; name: string; count: number }[];
+}
+interface Stats {
+  totalUsers: number; activeKeys: number; totalKeys: number; totalRevenue: number;
+  totalTcdmxCost: number; totalProfit: number; totalRequests: number; pendingTopups: number;
+  todayRevenue: number; todayRequests: number; todayTcdmxCost: number;
+  todayTopup: number; todayTopupCount: number;
+  yesterdayRevenue: number; revenueChangePct: number;
+  weekRevenue: number; weekRequests: number;
+  monthRevenue: number; monthRequests: number; monthTcdmxCost: number; monthProfit: number;
+  monthTopupRevenue: number; newUsers7d: number; activeSubscribers: number;
+}
 interface User { id: string; email: string; name: string; balance: number; redeemBalance: number; redeemExpiresAt: string | null; role: string; banned: boolean; dailyLimit: number; planExpiresAt: string | null; createdAt: string; _count: { apiKeys: number; usageLogs: number }; }
 interface Transaction { id: string; amount: number; method: string; status: string; note: string; createdAt: string; user: { email: string; name: string }; }
 interface RedeemCode { id: string; code: string; amount: number; note: string | null; usedBy: string | null; usedAt: string | null; expiresAt: string | null; creditDays: number | null; createdAt: string; }
@@ -516,26 +534,26 @@ export default function AdminPage() {
             ) : (
               <>
                 {/* Financial summary */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                  <div className="bg-gray-900 border border-green-800/50 rounded-xl p-5">
-                    <p className="text-xs text-green-400 uppercase tracking-wider mb-1">Tổng tiền nạp</p>
-                    <p className="text-2xl font-bold text-white">{analytics.totalTopup.toFixed(2)}<span className="text-sm font-normal text-green-400 ml-1">cr</span></p>
-                    <p className="text-gray-600 text-xs mt-1">Tất cả giao dịch topup completed</p>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                  <div className="bg-gray-900 border border-green-800/50 rounded-xl p-4">
+                    <p className="text-[10px] text-green-400 uppercase tracking-wider mb-1">💵 Tổng tiền nạp</p>
+                    <p className="text-xl font-bold text-white">${analytics.totalTopup.toFixed(2)}</p>
+                    <p className="text-gray-600 text-[10px] mt-1">All-time topup completed</p>
                   </div>
-                  <div className="bg-gray-900 border border-blue-800/50 rounded-xl p-5">
-                    <p className="text-xs text-blue-400 uppercase tracking-wider mb-1">Tổng tiền mua gói</p>
-                    <p className="text-2xl font-bold text-white">{analytics.totalPlan.toLocaleString("vi-VN")}<span className="text-sm font-normal text-blue-400 ml-1">₫</span></p>
-                    <p className="text-gray-600 text-xs mt-1">Tất cả giao dịch subscribe completed</p>
+                  <div className="bg-gray-900 border border-blue-800/50 rounded-xl p-4">
+                    <p className="text-[10px] text-blue-400 uppercase tracking-wider mb-1">📦 Tổng tiền gói</p>
+                    <p className="text-xl font-bold text-white">{analytics.totalPlan.toLocaleString("vi-VN")}<span className="text-xs text-blue-400 ml-1">₫</span></p>
+                    <p className="text-gray-600 text-[10px] mt-1">All-time subscribe</p>
                   </div>
-                  <div className="bg-gray-900 border border-teal-800/50 rounded-xl p-5">
-                    <p className="text-xs text-teal-400 uppercase tracking-wider mb-1">Số dư khả dụng</p>
-                    <p className="text-2xl font-bold text-white">{analytics.totalBalance.toFixed(2)}<span className="text-sm font-normal text-teal-400 ml-1">cr</span></p>
-                    <p className="text-gray-600 text-xs mt-1">Tổng số dư của tất cả user</p>
+                  <div className="bg-gray-900 border border-teal-800/50 rounded-xl p-4">
+                    <p className="text-[10px] text-teal-400 uppercase tracking-wider mb-1">💳 Số dư đang nắm</p>
+                    <p className="text-xl font-bold text-white">${analytics.totalBalance.toFixed(2)}</p>
+                    <p className="text-gray-600 text-[10px] mt-1">Tổng balance user</p>
                   </div>
-                  <div className="bg-gray-900 border border-purple-800/50 rounded-xl p-5">
-                    <p className="text-xs text-purple-400 uppercase tracking-wider mb-1">Tài khoản</p>
-                    <p className="text-2xl font-bold text-white">{analytics.totalUsers}</p>
-                    <p className="text-xs mt-1">
+                  <div className="bg-gray-900 border border-purple-800/50 rounded-xl p-4">
+                    <p className="text-[10px] text-purple-400 uppercase tracking-wider mb-1">👥 Tài khoản</p>
+                    <p className="text-xl font-bold text-white">{analytics.totalUsers}</p>
+                    <p className="text-[10px] mt-1">
                       {analytics.bannedUsers > 0
                         ? <span className="text-red-400">{analytics.bannedUsers} bị khóa</span>
                         : <span className="text-gray-600">Không có ban</span>}
@@ -543,46 +561,153 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* 7-day revenue chart (simple bars) */}
-                <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
-                  <h2 className="text-white font-semibold mb-4">Doanh thu 7 ngày (API usage)</h2>
-                  <div className="flex items-end gap-2 h-32">
+                {/* 30-day revenue + tcdmx cost stacked */}
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-white font-semibold">📈 Doanh thu 30 ngày</h2>
+                    <div className="flex gap-3 text-[11px]">
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-purple-600 rounded-sm" /><span className="text-gray-400">Doanh thu (mình thu)</span></span>
+                      <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-orange-500 rounded-sm" /><span className="text-gray-400">Chi phí TCDMX</span></span>
+                    </div>
+                  </div>
+                  <div className="flex items-end gap-1 h-40">
                     {(() => {
-                      const max = Math.max(...analytics.weekRevenue.map(d => d.revenue), 0.0001);
-                      return analytics.weekRevenue.map(d => (
-                        <div key={d.date} className="flex-1 flex flex-col items-center gap-1">
-                          <span className="text-gray-600 text-[9px]">${d.revenue.toFixed(4)}</span>
-                          <div className="w-full bg-purple-700/60 rounded-t"
-                            style={{ height: `${Math.max(4, (d.revenue / max) * 100)}px` }} />
-                          <span className="text-gray-600 text-[9px]">{d.date.slice(5)}</span>
+                      const max = Math.max(...analytics.day30Revenue.map(d => d.revenue), 0.0001);
+                      return analytics.day30Revenue.map(d => (
+                        <div key={d.date} className="flex-1 flex flex-col items-center gap-0.5 group relative">
+                          <div className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 border border-gray-700 rounded px-2 py-1 text-[10px] whitespace-nowrap z-10 shadow-lg">
+                            <div className="text-gray-300">{d.date}</div>
+                            <div className="text-purple-400">Thu: ${d.revenue.toFixed(4)}</div>
+                            <div className="text-orange-400">TCDMX: ${d.tcdmxCost.toFixed(4)}</div>
+                            <div className="text-green-400">Lãi: ${(d.revenue - d.tcdmxCost).toFixed(4)}</div>
+                            <div className="text-gray-500">{d.requests} reqs</div>
+                          </div>
+                          <div className="w-full flex flex-col justify-end h-full">
+                            <div className="w-full bg-purple-600 rounded-t" style={{ height: `${(d.revenue / max) * 100}%`, minHeight: d.revenue > 0 ? "2px" : "0" }} />
+                            <div className="w-full bg-orange-500/80" style={{ height: `${(d.tcdmxCost / max) * 100}%`, minHeight: d.tcdmxCost > 0 ? "2px" : "0" }} />
+                          </div>
                         </div>
                       ));
                     })()}
                   </div>
+                  <div className="flex justify-between text-[9px] text-gray-600 mt-2">
+                    <span>{analytics.day30Revenue[0]?.date.slice(5)}</span>
+                    <span>{analytics.day30Revenue[Math.floor(analytics.day30Revenue.length / 2)]?.date.slice(5)}</span>
+                    <span>{analytics.day30Revenue[analytics.day30Revenue.length - 1]?.date.slice(5)}</span>
+                  </div>
                 </div>
 
-                {/* Top models */}
-                {analytics.topModels.length > 0 && (
-                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                    <h2 className="text-white font-semibold mb-4">Top models (theo chi phí)</h2>
-                    <div className="space-y-3">
-                      {analytics.topModels.map((m) => {
-                        const maxCost = analytics.topModels[0].cost || 1;
-                        return (
-                          <div key={m.model}>
-                            <div className="flex justify-between text-xs mb-1">
-                              <span className="text-gray-300 font-mono">{m.model}</span>
-                              <span className="text-purple-400">${m.cost.toFixed(6)}</span>
+                {/* Hourly today + Payment methods */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+                  <div className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-6">
+                    <h2 className="text-white font-semibold mb-4">⏰ Hoạt động hôm nay (theo giờ)</h2>
+                    <div className="flex items-end gap-1 h-28">
+                      {(() => {
+                        const max = Math.max(...analytics.hourlyToday.map(h => h.requests), 1);
+                        return analytics.hourlyToday.map(h => (
+                          <div key={h.hour} className="flex-1 flex flex-col items-center gap-1 group relative">
+                            <div className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-800 border border-gray-700 rounded px-2 py-1 text-[10px] whitespace-nowrap z-10 shadow-lg">
+                              <div className="text-gray-300">{h.hour}h</div>
+                              <div className="text-cyan-400">{h.requests} reqs</div>
+                              <div className="text-purple-400">${h.revenue.toFixed(6)}</div>
                             </div>
-                            <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                              <div className="h-full bg-purple-600 rounded-full" style={{ width: `${(m.cost / maxCost) * 100}%` }} />
-                            </div>
+                            <div className="w-full bg-cyan-600/70 rounded-t" style={{ height: `${(h.requests / max) * 100}%`, minHeight: h.requests > 0 ? "2px" : "0" }} />
                           </div>
-                        );
-                      })}
+                        ));
+                      })()}
+                    </div>
+                    <div className="flex justify-between text-[9px] text-gray-600 mt-2">
+                      <span>00h</span><span>06h</span><span>12h</span><span>18h</span><span>23h</span>
                     </div>
                   </div>
-                )}
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                    <h2 className="text-white font-semibold mb-4">💰 Phương thức thanh toán</h2>
+                    {analytics.paymentMethods.length === 0 ? (
+                      <p className="text-gray-500 text-xs text-center py-6">Chưa có giao dịch</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {(() => {
+                          const total = analytics.paymentMethods.reduce((s, p) => s + p.amount, 0) || 1;
+                          const colors: Record<string, string> = { web2m: "bg-teal-500", manual: "bg-blue-500", usdt: "bg-amber-500", redeem_code: "bg-purple-500", admin_credit: "bg-gray-500" };
+                          return analytics.paymentMethods.map(p => (
+                            <div key={p.method}>
+                              <div className="flex justify-between text-[11px] mb-1">
+                                <span className="text-gray-300 capitalize">{p.method}</span>
+                                <span className="text-gray-400">${p.amount.toFixed(2)} <span className="text-gray-600">({p.count})</span></span>
+                              </div>
+                              <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full ${colors[p.method] || "bg-gray-500"}`} style={{ width: `${(p.amount / total) * 100}%` }} />
+                              </div>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Top models + Top users + Plan distribution */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {analytics.topModels.length > 0 && (
+                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                      <h2 className="text-white font-semibold mb-4">🤖 Top models</h2>
+                      <div className="space-y-3">
+                        {analytics.topModels.map((m) => {
+                          const maxCost = analytics.topModels[0].cost || 1;
+                          const margin = m.cost > 0 ? ((m.cost - m.tcdmxCost) / m.cost) * 100 : 0;
+                          return (
+                            <div key={m.model}>
+                              <div className="flex justify-between text-xs mb-1">
+                                <span className="text-gray-300 font-mono truncate flex-1 mr-2">{m.model}</span>
+                                <div className="flex gap-2 text-[11px]">
+                                  <span className="text-purple-400">${m.cost.toFixed(4)}</span>
+                                  <span className="text-gray-500">{m.requests}r</span>
+                                  <span className={margin >= 0 ? "text-green-400" : "text-red-400"}>{margin.toFixed(0)}%</span>
+                                </div>
+                              </div>
+                              <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                                <div className="h-full bg-purple-600 rounded-full" style={{ width: `${(m.cost / maxCost) * 100}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {analytics.topUsers.length > 0 && (
+                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                      <h2 className="text-white font-semibold mb-4">🏆 Top users (theo chi tiêu)</h2>
+                      <div className="space-y-2">
+                        {analytics.topUsers.map((u, i) => (
+                          <div key={u.userId} className="flex items-center justify-between py-1.5 border-b border-gray-800/60 last:border-0">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <span className={`text-xs font-bold w-5 text-center ${i === 0 ? "text-yellow-400" : i === 1 ? "text-gray-300" : i === 2 ? "text-orange-400" : "text-gray-600"}`}>#{i + 1}</span>
+                              <span className="text-gray-300 text-xs truncate">{u.email}</span>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-purple-400 text-xs font-medium">${u.cost.toFixed(2)}</p>
+                              <p className="text-gray-600 text-[10px]">{u.requests.toLocaleString()} reqs</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {analytics.planDistribution.length > 0 && (
+                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 lg:col-span-2">
+                      <h2 className="text-white font-semibold mb-4">📦 Phân bố subscribers theo gói</h2>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {analytics.planDistribution.map(p => (
+                          <div key={p.planId || "free"} className="bg-gray-800/40 border border-gray-700/40 rounded-lg p-3 text-center">
+                            <p className="text-gray-400 text-xs mb-1 truncate">{p.name}</p>
+                            <p className="text-2xl font-bold text-white">{p.count}</p>
+                            <p className="text-gray-600 text-[10px]">user{p.count !== 1 ? "s" : ""}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>
@@ -590,26 +715,104 @@ export default function AdminPage() {
 
         {tab === "stats" && stats && (
           <div>
-            <h1 className="text-2xl font-bold text-white mb-6">{t.admin.overview}</h1>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
-              <div className="bg-gray-900 border border-purple-800/50 rounded-xl p-5">
-                <p className="text-xs text-purple-400 uppercase tracking-wider mb-2">{t.admin.totalUsers}</p>
-                <p className="text-2xl font-bold text-white">{stats.totalUsers}</p>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h1 className="text-2xl font-bold text-white">📊 {t.admin.overview}</h1>
+                <p className="text-gray-500 text-xs mt-1">Tổng quan hoạt động hệ thống · cập nhật theo phiên</p>
               </div>
-              <div className="bg-gray-900 border border-cyan-800/50 rounded-xl p-5">
-                <p className="text-xs text-cyan-400 uppercase tracking-wider mb-2">{t.admin.activeKeys}</p>
-                <p className="text-2xl font-bold text-white">{stats.activeKeys}</p>
+              <button onClick={() => fetch("/api/admin?type=stats").then(r => r.json()).then(setStats)}
+                className="text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 rounded-lg px-3 py-1.5">
+                ↻ Làm mới
+              </button>
+            </div>
+
+            {/* Hero KPI: Today */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+              <div className="lg:col-span-2 bg-gradient-to-br from-purple-900/40 via-gray-900 to-gray-900 border border-purple-700/40 rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-purple-300 text-xs uppercase tracking-wider font-semibold">Doanh thu hôm nay</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${stats.revenueChangePct >= 0 ? "bg-green-900/40 text-green-400 border border-green-800/50" : "bg-red-900/40 text-red-400 border border-red-800/50"}`}>
+                    {stats.revenueChangePct >= 0 ? "↑" : "↓"} {Math.abs(stats.revenueChangePct).toFixed(1)}% vs hôm qua
+                  </span>
+                </div>
+                <p className="text-white text-4xl font-bold">${stats.todayRevenue.toFixed(4)}</p>
+                <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 text-xs">
+                  <div><span className="text-gray-500">Requests:</span> <span className="text-white font-medium">{stats.todayRequests.toLocaleString()}</span></div>
+                  <div><span className="text-gray-500">Chi phí TCDMX:</span> <span className="text-orange-300">${stats.todayTcdmxCost.toFixed(4)}</span></div>
+                  <div><span className="text-gray-500">Lợi nhuận:</span> <span className="text-green-400 font-medium">${(stats.todayRevenue - stats.todayTcdmxCost).toFixed(4)}</span></div>
+                  <div><span className="text-gray-500">Hôm qua:</span> <span className="text-gray-400">${stats.yesterdayRevenue.toFixed(4)}</span></div>
+                </div>
               </div>
-              <div className="bg-gray-900 border border-green-800/50 rounded-xl p-5">
-                <p className="text-xs text-green-400 uppercase tracking-wider mb-2">{t.admin.totalRevenue}</p>
-                <p className="text-2xl font-bold text-white">${stats.totalRevenue.toFixed(4)}</p>
-              </div>
-              <div className="bg-gray-900 border border-yellow-800/50 rounded-xl p-5">
-                <p className="text-xs text-yellow-400 uppercase tracking-wider mb-2">{t.admin.pendingTopups}</p>
-                <p className="text-2xl font-bold text-white">{stats.pendingTopups}</p>
+              <div className="bg-gradient-to-br from-green-900/30 via-gray-900 to-gray-900 border border-green-700/40 rounded-2xl p-6">
+                <p className="text-green-300 text-xs uppercase tracking-wider font-semibold mb-3">Nạp tiền hôm nay</p>
+                <p className="text-white text-3xl font-bold">${stats.todayTopup.toFixed(2)}</p>
+                <p className="text-gray-500 text-xs mt-1">{stats.todayTopupCount} giao dịch hoàn tất</p>
                 {stats.pendingTopups > 0 && (
-                  <button onClick={() => setTab("topups")} className="text-xs text-yellow-400 mt-1">Review →</button>
+                  <button onClick={() => setTab("topups")}
+                    className="mt-3 w-full bg-yellow-900/30 border border-yellow-700/50 hover:bg-yellow-900/50 text-yellow-300 text-xs font-medium py-2 rounded-lg">
+                    ⚠ {stats.pendingTopups} pending · Review →
+                  </button>
                 )}
+              </div>
+            </div>
+
+            {/* Period summary */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">7 ngày qua</p>
+                <p className="text-xl font-bold text-white">${stats.weekRevenue.toFixed(2)}</p>
+                <p className="text-gray-500 text-[11px] mt-0.5">{stats.weekRequests.toLocaleString()} reqs</p>
+              </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">30 ngày qua</p>
+                <p className="text-xl font-bold text-white">${stats.monthRevenue.toFixed(2)}</p>
+                <p className="text-gray-500 text-[11px] mt-0.5">Lãi: <span className="text-green-400">${stats.monthProfit.toFixed(2)}</span></p>
+              </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">All-time Doanh thu</p>
+                <p className="text-xl font-bold text-white">${stats.totalRevenue.toFixed(2)}</p>
+                <p className="text-gray-500 text-[11px] mt-0.5">{stats.totalRequests.toLocaleString()} reqs tổng</p>
+              </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">All-time Lợi nhuận</p>
+                <p className="text-xl font-bold text-green-400">${stats.totalProfit.toFixed(2)}</p>
+                <p className="text-gray-500 text-[11px] mt-0.5">Margin: {stats.totalRevenue > 0 ? ((stats.totalProfit / stats.totalRevenue) * 100).toFixed(1) : "0"}%</p>
+              </div>
+            </div>
+
+            {/* User & key stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 hover:border-purple-700/50 cursor-pointer" onClick={() => setTab("users")}>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] text-purple-400 uppercase tracking-wider">Tài khoản</p>
+                  <span className="text-purple-400 text-lg">👥</span>
+                </div>
+                <p className="text-xl font-bold text-white">{stats.totalUsers.toLocaleString()}</p>
+                <p className="text-gray-500 text-[11px] mt-0.5">+{stats.newUsers7d} trong 7 ngày</p>
+              </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] text-cyan-400 uppercase tracking-wider">API Keys</p>
+                  <span className="text-cyan-400 text-lg">🔑</span>
+                </div>
+                <p className="text-xl font-bold text-white">{stats.activeKeys}<span className="text-gray-600 text-sm font-normal"> / {stats.totalKeys}</span></p>
+                <p className="text-gray-500 text-[11px] mt-0.5">đang hoạt động</p>
+              </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] text-blue-400 uppercase tracking-wider">Subscribers</p>
+                  <span className="text-blue-400 text-lg">📦</span>
+                </div>
+                <p className="text-xl font-bold text-white">{stats.activeSubscribers}</p>
+                <p className="text-gray-500 text-[11px] mt-0.5">gói đang còn hạn</p>
+              </div>
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] text-emerald-400 uppercase tracking-wider">Topup 30 ngày</p>
+                  <span className="text-emerald-400 text-lg">💰</span>
+                </div>
+                <p className="text-xl font-bold text-white">${stats.monthTopupRevenue.toFixed(2)}</p>
+                <p className="text-gray-500 text-[11px] mt-0.5">tổng tiền vào</p>
               </div>
             </div>
           </div>

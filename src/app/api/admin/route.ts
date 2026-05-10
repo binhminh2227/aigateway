@@ -42,50 +42,108 @@ export async function GET(req: NextRequest) {
 
   if (type === "analytics") {
     const now = new Date();
-    const days = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(now); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (6 - i));
+    const today0 = new Date(now); today0.setHours(0, 0, 0, 0);
+    const days30 = Array.from({ length: 30 }, (_, i) => {
+      const d = new Date(today0); d.setDate(d.getDate() - (29 - i));
       const next = new Date(d); next.setDate(next.getDate() + 1);
       return { d, next, label: d.toISOString().slice(0, 10) };
+    });
+    const hours24 = Array.from({ length: 24 }, (_, i) => {
+      const d = new Date(today0); d.setHours(i);
+      const next = new Date(d); next.setHours(i + 1);
+      return { d, next, label: String(i).padStart(2, "0") };
     });
 
     const [
       totalTopup, totalPlan, totalBalance,
       totalUsers, bannedUsers,
       topModelsRaw,
-      ...weekRows
+      paymentMethodsRaw,
+      topUsersRaw,
+      planDistRaw,
+      day30Rows,
+      hour24Rows,
     ] = await Promise.all([
       prisma.transaction.aggregate({ where: { status: "completed", type: "topup" }, _sum: { amount: true } }),
       prisma.transaction.aggregate({ where: { status: "completed", type: "subscribe" }, _sum: { amount: true } }),
       prisma.user.aggregate({ _sum: { balance: true } }),
       prisma.user.count(),
       prisma.user.count({ where: { banned: true } }),
-      // groupBy without orderBy aggregate — sort in JS to avoid SQLite compatibility issues
-      prisma.usageLog.groupBy({ by: ["model"], _sum: { cost: true } }),
-      ...days.map(({ d, next }) =>
+      prisma.usageLog.groupBy({ by: ["model"], _sum: { cost: true, tcdmxCost: true }, _count: { _all: true } }),
+      prisma.transaction.groupBy({ by: ["method"], where: { status: "completed" }, _sum: { amount: true }, _count: { _all: true } }),
+      prisma.usageLog.groupBy({ by: ["userId"], _sum: { cost: true }, _count: { _all: true } }),
+      prisma.user.groupBy({ by: ["currentPlanId"], where: { planExpiresAt: { gt: now } }, _count: { _all: true } }),
+      Promise.all(days30.map(({ d, next }) =>
+        prisma.usageLog.aggregate({
+          where: { createdAt: { gte: d, lt: next } },
+          _sum: { cost: true, tcdmxCost: true },
+          _count: { _all: true },
+        })
+      )),
+      Promise.all(hours24.map(({ d, next }) =>
         prisma.usageLog.aggregate({
           where: { createdAt: { gte: d, lt: next } },
           _sum: { cost: true },
           _count: { _all: true },
         })
-      ),
+      )),
     ]);
 
     const topModels = [...topModelsRaw]
       .sort((a, b) => (b._sum.cost || 0) - (a._sum.cost || 0))
-      .slice(0, 5)
-      .map(m => ({ model: m.model, cost: m._sum.cost || 0 }));
+      .slice(0, 8)
+      .map(m => ({ model: m.model, cost: m._sum.cost || 0, tcdmxCost: m._sum.tcdmxCost || 0, requests: m._count._all || 0 }));
 
-    const weekRevenue = days.map(({ label }, i) => ({
+    const day30Revenue = days30.map(({ label }, i) => ({
       date: label,
-      revenue: weekRows[i]._sum.cost || 0,
-      requests: weekRows[i]._count._all || 0,
+      revenue: day30Rows[i]._sum.cost || 0,
+      tcdmxCost: day30Rows[i]._sum.tcdmxCost || 0,
+      requests: day30Rows[i]._count._all || 0,
     }));
+    const weekRevenue = day30Revenue.slice(-7);
+
+    const hourlyToday = hours24.map(({ label }, i) => ({
+      hour: label,
+      revenue: hour24Rows[i]._sum.cost || 0,
+      requests: hour24Rows[i]._count._all || 0,
+    }));
+
+    const paymentMethods = paymentMethodsRaw
+      .map(p => ({ method: p.method || "unknown", amount: p._sum.amount || 0, count: p._count._all || 0 }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const topUsersSorted = [...topUsersRaw]
+      .sort((a, b) => (b._sum.cost || 0) - (a._sum.cost || 0))
+      .slice(0, 10);
+    const topUserIds = topUsersSorted.map(u => u.userId);
+    const topUserRows = topUserIds.length
+      ? await prisma.user.findMany({ where: { id: { in: topUserIds } }, select: { id: true, email: true, name: true } })
+      : [];
+    const userById = Object.fromEntries(topUserRows.map(u => [u.id, u]));
+    const topUsers = topUsersSorted.map(u => ({
+      userId: u.userId,
+      email: userById[u.userId]?.email || "(deleted)",
+      cost: u._sum.cost || 0,
+      requests: u._count._all || 0,
+    }));
+
+    const planIds = planDistRaw.map(p => p.currentPlanId).filter(Boolean) as string[];
+    const planRows = planIds.length
+      ? await prisma.plan.findMany({ where: { id: { in: planIds } }, select: { id: true, name: true } })
+      : [];
+    const planNameById = Object.fromEntries(planRows.map(p => [p.id, p.name]));
+    const planDistribution = planDistRaw.map(p => ({
+      planId: p.currentPlanId,
+      name: p.currentPlanId ? (planNameById[p.currentPlanId] || "(unknown)") : "Free",
+      count: p._count._all,
+    })).sort((a, b) => b.count - a.count);
 
     return NextResponse.json({
       totalTopup: totalTopup._sum.amount || 0,
       totalPlan: totalPlan._sum.amount || 0,
       totalBalance: totalBalance._sum.balance || 0,
-      totalUsers, bannedUsers, topModels, weekRevenue,
+      totalUsers, bannedUsers, topModels, weekRevenue, day30Revenue,
+      hourlyToday, paymentMethods, topUsers, planDistribution,
     });
   }
 
@@ -106,24 +164,64 @@ export async function GET(req: NextRequest) {
   }
 
   if (type === "stats") {
-    const [users, keys, totalUsage, pendingTx, todayUsage] = await Promise.all([
+    const now = new Date();
+    const today0 = new Date(now); today0.setHours(0, 0, 0, 0);
+    const week0 = new Date(today0); week0.setDate(week0.getDate() - 6);
+    const month0 = new Date(today0); month0.setDate(month0.getDate() - 29);
+    const yest0 = new Date(today0); yest0.setDate(yest0.getDate() - 1);
+
+    const [
+      users, totalKeys, activeKeys, allUsage, pendingTx,
+      todayUsage, yestUsage, weekUsage, monthUsage,
+      todayTopup, monthTopup,
+      newUsers7d, activeSubscribers,
+    ] = await Promise.all([
       prisma.user.count(),
+      prisma.apiKey.count(),
       prisma.apiKey.count({ where: { status: "active" } }),
-      prisma.usageLog.aggregate({ _sum: { cost: true } }),
+      prisma.usageLog.aggregate({ _sum: { cost: true, tcdmxCost: true }, _count: { _all: true } }),
       prisma.transaction.count({ where: { status: "pending" } }),
-      prisma.usageLog.aggregate({
-        where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
-        _sum: { cost: true },
-        _count: { _all: true },
-      }),
+      prisma.usageLog.aggregate({ where: { createdAt: { gte: today0 } }, _sum: { cost: true, tcdmxCost: true }, _count: { _all: true } }),
+      prisma.usageLog.aggregate({ where: { createdAt: { gte: yest0, lt: today0 } }, _sum: { cost: true }, _count: { _all: true } }),
+      prisma.usageLog.aggregate({ where: { createdAt: { gte: week0 } }, _sum: { cost: true }, _count: { _all: true } }),
+      prisma.usageLog.aggregate({ where: { createdAt: { gte: month0 } }, _sum: { cost: true, tcdmxCost: true }, _count: { _all: true } }),
+      prisma.transaction.aggregate({ where: { status: "completed", type: "topup", createdAt: { gte: today0 } }, _sum: { amount: true }, _count: { _all: true } }),
+      prisma.transaction.aggregate({ where: { status: "completed", type: { in: ["topup", "subscribe"] }, createdAt: { gte: month0 } }, _sum: { amount: true } }),
+      prisma.user.count({ where: { createdAt: { gte: new Date(now.getTime() - 7 * 864e5) } } }),
+      prisma.user.count({ where: { planExpiresAt: { gt: now } } }),
     ]);
+
+    const totalCost = allUsage._sum.cost || 0;
+    const totalTcdmx = allUsage._sum.tcdmxCost || 0;
+    const todayCost = todayUsage._sum.cost || 0;
+    const yestCost = yestUsage._sum.cost || 0;
+    const monthCost = monthUsage._sum.cost || 0;
+    const monthTcdmx = monthUsage._sum.tcdmxCost || 0;
+
     return NextResponse.json({
       totalUsers: users,
-      activeKeys: keys,
-      totalRevenue: totalUsage._sum.cost || 0,
+      activeKeys, totalKeys,
+      totalRevenue: totalCost,
+      totalTcdmxCost: totalTcdmx,
+      totalProfit: totalCost - totalTcdmx,
+      totalRequests: allUsage._count._all || 0,
       pendingTopups: pendingTx,
-      todayRevenue: todayUsage._sum.cost || 0,
+      todayRevenue: todayCost,
       todayRequests: todayUsage._count._all || 0,
+      todayTcdmxCost: todayUsage._sum.tcdmxCost || 0,
+      todayTopup: todayTopup._sum.amount || 0,
+      todayTopupCount: todayTopup._count._all || 0,
+      yesterdayRevenue: yestCost,
+      revenueChangePct: yestCost > 0 ? ((todayCost - yestCost) / yestCost) * 100 : (todayCost > 0 ? 100 : 0),
+      weekRevenue: weekUsage._sum.cost || 0,
+      weekRequests: weekUsage._count._all || 0,
+      monthRevenue: monthCost,
+      monthRequests: monthUsage._count._all || 0,
+      monthTcdmxCost: monthTcdmx,
+      monthProfit: monthCost - monthTcdmx,
+      monthTopupRevenue: monthTopup._sum.amount || 0,
+      newUsers7d,
+      activeSubscribers,
     });
   }
 
