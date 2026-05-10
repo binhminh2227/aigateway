@@ -16,11 +16,15 @@ export default function RedeemPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [balance, setBalance] = useState(0);
+  const [redeemBalance, setRedeemBalance] = useState(0);
+  const [redeemExpiresAt, setRedeemExpiresAt] = useState<string | null>(null);
   const [activity, setActivity] = useState<Activity[]>([]);
 
   useEffect(() => {
     fetch("/api/billing").then(r => r.json()).then(d => {
       setBalance(d.balance || 0);
+      setRedeemBalance(d.redeemBalance || 0);
+      setRedeemExpiresAt(d.redeemExpiresAt || null);
       const redeems = (d.transactions || []).filter((t: Activity & { method: string }) => t.method === "redeem_code");
       setActivity(redeems.slice(0, 5));
     });
@@ -41,9 +45,10 @@ export default function RedeemPage() {
     setLoading(false);
 
     if (res.ok) {
-      setMsg({ type: "success", text: `Đổi thưởng thành công! +${data.amount.toFixed(2)} credit đã được cộng vào số dư.` });
+      setMsg({ type: "success", text: `Đổi thưởng thành công! +${data.amount.toFixed(2)} credit đã cộng vào số dư khuyến mãi.` });
       setCode("");
-      setBalance(b => b + data.amount);
+      setRedeemBalance(b => b + data.amount);
+      if (data.expiresAt) setRedeemExpiresAt(data.expiresAt);
     } else {
       setMsg({ type: "error", text: data.error || "Failed to redeem code" });
     }
@@ -57,12 +62,21 @@ export default function RedeemPage() {
       </div>
 
       <div className="max-w-xl mx-auto space-y-4">
-        {/* Balance card */}
-        <div className="bg-gradient-to-r from-teal-800/60 to-teal-700/40 border border-teal-700/50 rounded-xl p-8 text-center">
-          <div className="w-12 h-12 bg-teal-800/60 rounded-xl flex items-center justify-center text-2xl mx-auto mb-3">💳</div>
-          <p className="text-gray-300 text-sm mb-1">Current Balance</p>
-          <p className="text-white text-3xl font-bold">${balance.toFixed(2)}</p>
-          <p className="text-gray-400 text-xs mt-1">Concurrency: 5 requests</p>
+        {/* Balance cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="bg-gradient-to-r from-teal-800/60 to-teal-700/40 border border-teal-700/50 rounded-xl p-6 text-center">
+            <div className="w-10 h-10 bg-teal-800/60 rounded-xl flex items-center justify-center text-xl mx-auto mb-2">💳</div>
+            <p className="text-gray-300 text-xs mb-1">Số dư chính</p>
+            <p className="text-white text-2xl font-bold">${balance.toFixed(2)}</p>
+          </div>
+          <div className="bg-gradient-to-r from-purple-800/60 to-purple-700/40 border border-purple-700/50 rounded-xl p-6 text-center">
+            <div className="w-10 h-10 bg-purple-800/60 rounded-xl flex items-center justify-center text-xl mx-auto mb-2">🎁</div>
+            <p className="text-gray-300 text-xs mb-1">Số dư khuyến mãi</p>
+            <p className="text-white text-2xl font-bold">${redeemBalance.toFixed(2)}</p>
+            {redeemExpiresAt && redeemBalance > 0 && (
+              <p className="text-purple-300 text-[10px] mt-1">HSD: {new Date(redeemExpiresAt).toLocaleDateString("vi-VN")}</p>
+            )}
+          </div>
         </div>
 
         {/* Redeem form */}

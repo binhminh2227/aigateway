@@ -13,6 +13,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const { t } = useLang();
   const [balance, setBalance] = useState<number | null>(null);
+  const [redeemBalance, setRedeemBalance] = useState<number>(0);
   const [planName, setPlanName] = useState<string | null>(null);
   const [planRoom, setPlanRoom] = useState<number>(0);
   const [planExpiresAt, setPlanExpiresAt] = useState<string | null>(null);
@@ -21,12 +22,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (status === "authenticated") {
       fetch("/api/billing").then(r => r.json()).then(d => {
         setBalance(d.balance ?? null);
+        setRedeemBalance(d.redeemBalance ?? 0);
         setPlanName(d.planName ?? null);
         setPlanExpiresAt(d.planExpiresAt ?? null);
         setPlanRoom(Math.max(0, (d.dailyLimit ?? 0) - (d.planDailyUsed ?? 0)));
       });
     }
-  }, [status]);
+  }, [status, pathname]);
 
   const planActive = planName && planExpiresAt && new Date(planExpiresAt) > new Date();
 
@@ -135,6 +137,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <span className="text-teal-400 text-xs font-medium bg-teal-900/30 border border-teal-800/50 px-2 py-0.5 rounded">
             💳 {t.topbar.balance}: {balance !== null ? `${balance.toFixed(2)} credit` : "..."}
           </span>
+          {redeemBalance > 0 && (
+            <span className="text-purple-300 text-xs font-medium bg-purple-900/30 border border-purple-800/50 px-2 py-0.5 rounded" title="Số dư khuyến mãi (có hạn sử dụng)">
+              🎁 {redeemBalance.toFixed(2)} credit
+            </span>
+          )}
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-full bg-teal-700 flex items-center justify-center text-white text-xs font-bold">
               {session.user.email?.[0]?.toUpperCase()}
