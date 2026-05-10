@@ -384,6 +384,7 @@ export default function ApiKeysPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [useKeyModal, setUseKeyModal] = useState<ApiKey | null>(null);
   const [editKeyModal, setEditKeyModal] = useState<ApiKey | null>(null);
   const [search, setSearch] = useState("");
@@ -479,7 +480,23 @@ export default function ApiKeysPage() {
   async function copyKey(key: string) {
     await navigator.clipboard.writeText(key);
     setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
+    setTimeout(() => setCopiedKey(null), 1500);
+  }
+
+  async function copyKeyById(id: string, fallback: string) {
+    let text = fallback;
+    try {
+      const res = await fetch("/api/keys/reveal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const d = await res.json();
+      if (res.ok && d.key) text = d.key;
+    } catch {}
+    await navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
   }
 
   const allGroups = Array.from(new Set(keys.map(k => k.group).filter(Boolean))) as string[];
@@ -591,8 +608,8 @@ export default function ApiKeysPage() {
                           <code className="text-teal-400 font-mono text-xs bg-gray-800/60 px-2 py-1 rounded border border-gray-700">
                             {k.key ? truncateKey(k.key) : k.keyPrefix}
                           </code>
-                          <button onClick={() => copyKey(k.key || k.keyPrefix)} className="text-gray-500 hover:text-gray-300 text-xs" title={k.key ? "Copy" : "Copy prefix (full key only available at creation)"}>
-                            {copiedKey === (k.key || k.keyPrefix) ? "✅" : "📋"}
+                          <button onClick={() => copyKeyById(k.id, k.key || k.keyPrefix)} className="text-gray-500 hover:text-teal-300 text-xs" title="Copy full key">
+                            {copiedId === k.id ? "✅" : "📋"}
                           </button>
                         </div>
                       </td>
