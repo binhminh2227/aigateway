@@ -1,6 +1,7 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 RUN apk add --no-cache libc6-compat python3 make g++
+ENV DATABASE_URL=file:/tmp/build.db
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 RUN npm ci
@@ -8,6 +9,7 @@ RUN npm ci
 FROM node:20-alpine AS builder
 WORKDIR /app
 RUN apk add --no-cache libc6-compat python3 make g++
+ENV DATABASE_URL=file:/tmp/build.db
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
@@ -28,6 +30,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=deps     --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
+COPY --from=deps     --chown=nextjs:nodejs /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 COPY --from=deps     --chown=nextjs:nodejs /app/node_modules/bcryptjs ./node_modules/bcryptjs
