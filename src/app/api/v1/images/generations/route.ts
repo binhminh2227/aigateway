@@ -94,9 +94,15 @@ export async function POST(req: NextRequest) {
   // Pre-charge gate: ensure user has at least the max possible cost before calling upstream.
   // For flat-cost models this returns flatCost*markup; for token-based models it estimates from prompt size.
   const maxCost = await estimateMaxCost(model, body);
+  if (!isFinite(maxCost)) {
+    return NextResponse.json(
+      { error: { message: `Model "${model}" is not configured. Contact admin.`, type: "invalid_request_error", code: "model_not_configured" } },
+      { status: 400 }
+    );
+  }
   const planRoom = planActive ? Math.max(0, apiKey.user.dailyLimit - planDailyUsed) : 0;
   const totalAvailable = (redeemActive ? apiKey.user.redeemBalance : 0) + planRoom + Math.max(0, apiKey.user.balance);
-  if (isFinite(maxCost) && totalAvailable < maxCost) {
+  if (totalAvailable < maxCost) {
     return NextResponse.json(
       { error: { message: `Insufficient funds. Need ~$${maxCost.toFixed(4)} but have $${totalAvailable.toFixed(4)}.`, type: "billing_error", code: "insufficient_balance" } },
       { status: 402 }
