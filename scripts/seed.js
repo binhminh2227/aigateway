@@ -3,7 +3,8 @@ const bcrypt = require("bcryptjs");
 const path = require("path");
 const { v4: uuidv4 } = require("uuid");
 
-const dbPath = path.resolve(__dirname, "../dev.db");
+const dbUrl = process.env.DATABASE_URL || "file:./dev.db";
+const dbPath = path.resolve(process.cwd(), dbUrl.replace(/^file:/, ""));
 const db = new Database(dbPath);
 
 const email = process.env.ADMIN_EMAIL;
