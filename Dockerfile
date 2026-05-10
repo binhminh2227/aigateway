@@ -44,4 +44,4 @@ USER nextjs
 EXPOSE 3000
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["sh", "-c", "node_modules/.bin/prisma db push --accept-data-loss || true; node server.js"]
+CMD ["sh", "-c", "node node_modules/prisma/build/index.js db push --accept-data-loss || true; node server.js"]
