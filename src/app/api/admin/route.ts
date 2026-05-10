@@ -145,11 +145,12 @@ export async function GET(req: NextRequest) {
     try { plain = decryptSecret(activeKey.key); } catch { /* fallback to raw */ }
     let usage: { quota?: { used: number; remaining: number; limit: number; unit: string }; model_stats?: Array<{ model: string; cost: number; actual_cost: number; requests: number }> } | null = null;
     try {
-      const r = await fetch("https://tcdmx.com/v1/usage", { headers: { Authorization: `Bearer ${plain}` } });
+      const r = await fetch("https://tcdmx.com/v1/usage", { headers: { Authorization: `Bearer ${plain}` }, signal: AbortSignal.timeout(15000) });
       if (!r.ok) return NextResponse.json({ error: `TCDMX returned ${r.status}` }, { status: 502 });
       usage = await r.json();
     } catch (e) {
-      return NextResponse.json({ error: `Fetch failed: ${String(e)}` }, { status: 502 });
+      const msg = (e as Error)?.name === "TimeoutError" ? "TCDMX timeout (>15s)" : `Fetch failed: ${String(e)}`;
+      return NextResponse.json({ error: msg }, { status: 502 });
     }
     // Compute mình thu vs TCDMX trừ — all-time
     const totals = await prisma.usageLog.aggregate({ _sum: { cost: true, tcdmxCost: true } });
