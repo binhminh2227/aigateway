@@ -19,6 +19,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Mã đã hết hạn" }, { status: 400 });
   }
 
+  // Rate limit: 1 redeem code per user per 24h. The 2nd code does NOT stack.
+  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const recentRedeem = await prisma.redeemCode.findFirst({
+    where: { usedBy: session.user.id, usedAt: { gte: since24h } },
+    select: { usedAt: true },
+  });
+  if (recentRedeem?.usedAt) {
+    const nextAt = new Date(recentRedeem.usedAt.getTime() + 24 * 60 * 60 * 1000);
+    const hoursLeft = Math.ceil((nextAt.getTime() - Date.now()) / (60 * 60 * 1000));
+    return NextResponse.json({
+      error: `Mỗi tài khoản chỉ được đổi 1 mã trong 24 giờ. Thử lại sau ${hoursLeft} giờ (vào lúc ${nextAt.toLocaleString("vi-VN")}).`,
+    }, { status: 429 });
+  }
+
   // Atomic claim: only succeeds if usedBy is still null — prevents double-redeem race condition
   const claimed = await prisma.redeemCode.updateMany({
     where: { id: redeemCode.id, usedBy: null },

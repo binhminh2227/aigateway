@@ -65,6 +65,14 @@ export async function GET(req: NextRequest) {
     select: { apiKeyId: true, cost: true, createdAt: true },
   });
 
+  const redeemAgg = await prisma.transaction.aggregate({
+    where: { userId: session.user.id, method: "redeem_code", status: "completed" },
+    _sum: { amount: true },
+    _count: { _all: true },
+  });
+  const totalRedeemed = redeemAgg._sum.amount || 0;
+  const redeemUsed = Math.max(0, totalRedeemed - (user?.redeemBalance || 0));
+
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const planActive = (user?.dailyLimit || 0) > 0 && user?.planExpiresAt && user.planExpiresAt >= new Date();
   const dayAgg = planActive
@@ -81,6 +89,9 @@ export async function GET(req: NextRequest) {
     planDailyUsed: dayAgg?._sum.cost || 0,
     redeemBalance: user?.redeemBalance || 0,
     redeemExpiresAt: user?.redeemExpiresAt || null,
+    redeemTotal: totalRedeemed,
+    redeemUsed,
+    redeemCount: redeemAgg._count._all,
     usageLogs: recentLogs,
   });
 }

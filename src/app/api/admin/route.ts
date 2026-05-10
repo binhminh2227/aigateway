@@ -226,8 +226,21 @@ export async function GET(req: NextRequest) {
   }
 
   if (type === "redeem_codes") {
-    const codes = await prisma.redeemCode.findMany({ orderBy: { createdAt: "desc" }, take: limit, skip });
-    return NextResponse.json(codes);
+    const search = (searchParams.get("search") || "").trim();
+    const status = searchParams.get("status") || ""; // "", "unused", "used", "expired"
+    const where: Record<string, unknown> = {};
+    if (search) where.code = { contains: search.toUpperCase() };
+    if (status === "unused") where.usedBy = null;
+    else if (status === "used") where.NOT = { usedBy: null };
+    else if (status === "expired") {
+      where.usedBy = null;
+      where.expiresAt = { lt: new Date(), not: null };
+    }
+    const [codes, total] = await Promise.all([
+      prisma.redeemCode.findMany({ where, orderBy: { createdAt: "desc" }, take: limit, skip }),
+      prisma.redeemCode.count({ where }),
+    ]);
+    return NextResponse.json({ codes, total, page, limit });
   }
 
   if (type === "tcdmx_keys") {
@@ -479,7 +492,7 @@ export async function POST(req: NextRequest) {
     if (isNaN(amount) || amount <= 0) {
       return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
     }
-    const count = Math.max(1, Math.min(parseInt(data.count || "1"), 100));
+    const count = Math.max(1, Math.min(parseInt(data.count || "1"), 10000));
     // expiresAt: ISO string or days-from-now number
     let expiresAt: Date | null = null;
     if (data.expiresAt) {
@@ -494,20 +507,29 @@ export async function POST(req: NextRequest) {
       const cd = parseInt(data.creditDays);
       if (!isNaN(cd) && cd > 0) creditDays = cd;
     }
-    const codes = [];
+    const rows: { code: string; amount: number; note: string | null; createdBy: string; expiresAt: Date | null; creditDays: number | null }[] = [];
     for (let i = 0; i < count; i++) {
-      const code = crypto.randomBytes(10).toString("hex").toUpperCase();
-      const redeemCode = await prisma.redeemCode.create({
-        data: { code, amount, note: data.note, createdBy: session!.user.id, expiresAt, creditDays },
+      rows.push({
+        code: crypto.randomBytes(10).toString("hex").toUpperCase(),
+        amount, note: data.note ?? null, createdBy: session!.user.id, expiresAt, creditDays,
       });
-      codes.push(redeemCode);
     }
-    return NextResponse.json(codes, { status: 201 });
+    // Bulk insert in chunks to keep SQLite happy
+    const CHUNK = 500;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      await prisma.redeemCode.createMany({ data: rows.slice(i, i + CHUNK) });
+    }
+    return NextResponse.json({ count: rows.length, codes: rows.map(r => r.code) }, { status: 201 });
   }
 
   if (action === "delete_redeem_code") {
     await prisma.redeemCode.delete({ where: { id: data.id } });
     return NextResponse.json({ success: true });
+  }
+
+  if (action === "delete_all_unused_codes") {
+    const result = await prisma.redeemCode.deleteMany({ where: { usedBy: null } });
+    return NextResponse.json({ deleted: result.count });
   }
 
   if (action === "generate_admin_api_token") {

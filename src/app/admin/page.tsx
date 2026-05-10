@@ -44,7 +44,7 @@ export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const { t } = useLang();
-  const [tab, setTab] = useState<"stats" | "analytics" | "users" | "topups" | "redeem" | "pricing" | "plans" | "tcdmx" | "payment" | "api">("stats");
+  const [tab, setTab] = useState<"stats" | "users" | "topups" | "redeem" | "pricing" | "plans" | "tcdmx" | "payment" | "api">("stats");
   const [stats, setStats] = useState<Stats | null>(null);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [users, setUsers] = useState<User[]>([]);
@@ -55,6 +55,11 @@ export default function AdminPage() {
   const [modalSaving, setModalSaving] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [redeemCodes, setRedeemCodes] = useState<RedeemCode[]>([]);
+  const [redeemTotal, setRedeemTotal] = useState(0);
+  const [redeemPage, setRedeemPage] = useState(1);
+  const [redeemSearch, setRedeemSearch] = useState("");
+  const [redeemStatus, setRedeemStatus] = useState<"" | "unused" | "used" | "expired">("");
+  const REDEEM_PAGE_SIZE = 50;
   const [modelPricing, setModelPricing] = useState<ModelPricing[]>([]);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [paymentSettings, setPaymentSettings] = useState<Record<string, string>>({
@@ -122,12 +127,13 @@ export default function AdminPage() {
     }
 
     if (tab === "stats") {
-      fetch("/api/admin?type=stats").then(r => r.json()).then(d => { setStats(d); }).catch(console.error).finally(done);
-    } else if (tab === "analytics") {
       setLoading(true);
-      fetch("/api/admin?type=analytics").then(r => r.json()).then(d => {
-        if (d && typeof d.totalTopup === "number") setAnalytics(d);
-      }).catch(console.error).finally(done);
+      Promise.all([
+        fetch("/api/admin?type=stats").then(r => r.json()).then(d => { setStats(d); }),
+        fetch("/api/admin?type=analytics").then(r => r.json()).then(d => {
+          if (d && typeof d.totalTopup === "number") setAnalytics(d);
+        }),
+      ]).catch(console.error).finally(done);
     } else if (tab === "users") {
       setLoading(true);
       fetch("/api/admin?type=users").then(r => r.json()).then(d => { setUsers(d.users || d); }).catch(console.error).finally(done);
@@ -136,11 +142,24 @@ export default function AdminPage() {
       fetch("/api/admin?type=transactions").then(r => r.json()).then(d => { setTransactions(d.transactions || d); }).catch(console.error).finally(done);
     } else if (tab === "redeem") {
       setLoading(true);
+      const qs = new URLSearchParams({
+        type: "redeem_codes",
+        page: String(redeemPage),
+        limit: String(REDEEM_PAGE_SIZE),
+        ...(redeemSearch ? { search: redeemSearch } : {}),
+        ...(redeemStatus ? { status: redeemStatus } : {}),
+      }).toString();
       Promise.all([
-        fetch("/api/admin?type=redeem_codes").then(r => r.json()),
+        fetch(`/api/admin?${qs}`).then(r => r.json()),
         fetch("/api/admin?type=settings").then(r => r.json()),
-      ]).then(([codes, s]) => {
-        if (Array.isArray(codes)) setRedeemCodes(codes);
+      ]).then(([d, s]) => {
+        if (d && Array.isArray(d.codes)) {
+          setRedeemCodes(d.codes);
+          setRedeemTotal(d.total || 0);
+        } else if (Array.isArray(d)) {
+          setRedeemCodes(d);
+          setRedeemTotal(d.length);
+        }
         if (s && typeof s === "object") setSettings(prev => ({ ...prev, ...s }));
       }).catch(console.error).finally(done);
     } else if (tab === "tcdmx") {
@@ -205,7 +224,8 @@ export default function AdminPage() {
         setApiToken(d?.token || null);
       }).catch(console.error).finally(done);
     }
-  }, [tab]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, redeemPage, redeemSearch, redeemStatus]);
 
   async function generateApiToken() {
     if (apiToken && !confirm("Tạo token mới sẽ vô hiệu hoá token cũ. Tiếp tục?")) return;
@@ -247,13 +267,21 @@ export default function AdminPage() {
       if (newCodeExpireDays) payload.expireDays = parseInt(newCodeExpireDays);
       if (newCodeCreditDays) payload.creditDays = parseInt(newCodeCreditDays);
       const res = await fetch("/api/admin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const codes = await res.json();
-      if (Array.isArray(codes)) {
-        setCreatedCodes(codes.map((c: RedeemCode) => c.code));
-        setRedeemCodes((prev) => [...codes, ...prev]);
+      const d = await res.json();
+      const codes: string[] = Array.isArray(d) ? d.map((c: RedeemCode) => c.code) : (Array.isArray(d?.codes) ? d.codes : []);
+      if (codes.length > 0) {
+        setCreatedCodes(codes);
         setNewCodeAmount(""); setNewCodeCount("1"); setNewCodeNote(""); setNewCodeExpireDays(""); setNewCodeCreditDays("");
+        // Reset to page 1 to refetch list with the new codes at top
+        if (redeemPage !== 1) setRedeemPage(1);
+        else {
+          const qs = new URLSearchParams({ type: "redeem_codes", page: "1", limit: String(REDEEM_PAGE_SIZE), ...(redeemSearch ? { search: redeemSearch } : {}), ...(redeemStatus ? { status: redeemStatus } : {}) }).toString();
+          fetch(`/api/admin?${qs}`).then(r => r.json()).then(d2 => {
+            if (d2 && Array.isArray(d2.codes)) { setRedeemCodes(d2.codes); setRedeemTotal(d2.total || 0); }
+          });
+        }
       } else {
-        alert(codes.error || "Failed to create codes");
+        alert(d.error || "Failed to create codes");
       }
     } catch {
       alert("Network error");
@@ -273,6 +301,22 @@ export default function AdminPage() {
   async function deleteRedeemCode(id: string) {
     await fetch("/api/admin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete_redeem_code", id }) });
     setRedeemCodes((prev) => prev.filter((c) => c.id !== id));
+    setRedeemTotal(t => Math.max(0, t - 1));
+  }
+
+  async function deleteAllUnusedCodes() {
+    if (!confirm("Xóa TẤT CẢ mã chưa dùng (kể cả chưa hết hạn)? Không thể hoàn tác.")) return;
+    const res = await fetch("/api/admin", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete_all_unused_codes" }) });
+    const d = await res.json();
+    alert(`Đã xóa ${d.deleted || 0} mã chưa dùng`);
+    if (redeemPage !== 1) setRedeemPage(1);
+    else {
+      const qs = new URLSearchParams({ type: "redeem_codes", page: "1", limit: String(REDEEM_PAGE_SIZE), ...(redeemSearch ? { search: redeemSearch } : {}), ...(redeemStatus ? { status: redeemStatus } : {}) }).toString();
+      fetch(`/api/admin?${qs}`).then(r => r.json()).then(d2 => {
+        if (d2 && Array.isArray(d2.codes)) { setRedeemCodes(d2.codes); setRedeemTotal(d2.total || 0); }
+      });
+    }
   }
 
   async function addTcdmxKey() {
@@ -439,7 +483,6 @@ export default function AdminPage() {
         <nav className="flex-1 px-3 py-4 space-y-1">
           {[
             { key: "stats", label: t.admin.tabs.dashboard, icon: "⊞" },
-            { key: "analytics", label: "Analytics", icon: "📈" },
             { key: "users", label: t.admin.tabs.users, icon: "👥" },
             { key: "topups", label: t.admin.tabs.topups, icon: "💰" },
             { key: "redeem", label: t.admin.tabs.redeem, icon: "🎁" },
@@ -516,23 +559,11 @@ export default function AdminPage() {
         </div>
       )}
 
-      <main className="flex-1 ml-56 p-8">
-        {tab === "analytics" && (
-          <div>
-            <h1 className="text-2xl font-bold text-white mb-6">📈 Analytics</h1>
-            {loading ? (
-              <div className="flex justify-center py-20"><div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>
-            ) : !analytics ? (
-              <div className="text-center py-20 text-gray-500">
-                <p className="text-3xl mb-3">⚠</p>
-                <p>Không tải được dữ liệu analytics. Thử lại sau.</p>
-                <button onClick={() => { setLoading(true); fetch("/api/admin?type=analytics").then(r => r.json()).then(d => { if (d?.totalTopup !== undefined) setAnalytics(d); }).finally(() => setLoading(false)); }}
-                  className="mt-4 text-sm text-purple-400 hover:text-purple-300 border border-purple-800/40 px-4 py-2 rounded-lg">
-                  Thử lại
-                </button>
-              </div>
-            ) : (
-              <>
+      <main className="flex-1 ml-56 p-8 flex flex-col">
+        {tab === "stats" && analytics && (
+          <div className="mt-8 order-2" data-analytics-block="true">
+            <h2 className="text-lg font-bold text-white mb-4">📈 Analytics chi tiết</h2>
+            <>
                 {/* Financial summary */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
                   <div className="bg-gray-900 border border-green-800/50 rounded-xl p-4">
@@ -709,12 +740,11 @@ export default function AdminPage() {
                   )}
                 </div>
               </>
-            )}
           </div>
         )}
 
         {tab === "stats" && stats && (
-          <div>
+          <div className="order-1">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h1 className="text-2xl font-bold text-white">📊 {t.admin.overview}</h1>
@@ -1007,7 +1037,7 @@ export default function AdminPage() {
                 <div>
                   <label className="text-gray-500 text-xs block mb-1">Số lượng</label>
                   <input type="number" value={newCodeCount} onChange={(e) => setNewCodeCount(e.target.value)}
-                    placeholder="1" min="1" max="100" className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm" />
+                    placeholder="1" min="1" max="10000" className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm" />
                 </div>
                 <div>
                   <label className="text-gray-500 text-xs block mb-1" title="Sau bao nhiêu ngày kể từ giờ thì mã không còn đổi được nữa">Hạn mã (ngày)</label>
@@ -1035,22 +1065,77 @@ export default function AdminPage() {
 
               {createdCodes.length > 0 && (
                 <div className="mt-4 bg-gray-800 rounded-lg p-4">
-                  <p className="text-green-400 text-xs font-medium mb-2">✓ Đã tạo {createdCodes.length} mã:</p>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-green-400 text-xs font-medium">✓ Đã tạo {createdCodes.length} mã{createdCodes.length > 5 ? " (xem 5 mã mẫu)" : ""}</p>
+                    <div className="flex gap-2">
+                      <button onClick={() => navigator.clipboard.writeText(createdCodes.join("\n"))}
+                        className="text-xs bg-purple-700/40 hover:bg-purple-700/60 text-purple-200 px-3 py-1 rounded border border-purple-700/50">
+                        📋 Copy tất cả
+                      </button>
+                      <button onClick={() => {
+                        const blob = new Blob([createdCodes.join("\n")], { type: "text/plain" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url; a.download = `redeem-codes-${new Date().toISOString().slice(0,10)}.txt`;
+                        a.click(); URL.revokeObjectURL(url);
+                      }}
+                        className="text-xs bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-1 rounded border border-gray-600">
+                        ⬇ Tải .txt
+                      </button>
+                      <button onClick={() => setCreatedCodes([])} className="text-gray-500 text-xs hover:text-gray-300">✕</button>
+                    </div>
+                  </div>
                   <div className="space-y-1">
-                    {createdCodes.map((c) => (
-                      <p key={c} className="text-white font-mono text-sm tracking-wider">{c}</p>
+                    {createdCodes.slice(0, 5).map((c) => (
+                      <div key={c} className="flex items-center gap-2">
+                        <p className="text-white font-mono text-sm tracking-wider flex-1">{c}</p>
+                        <button onClick={() => navigator.clipboard.writeText(c)}
+                          title="Copy"
+                          className="text-gray-400 hover:text-purple-300 p-1 rounded hover:bg-gray-700">
+                          📋
+                        </button>
+                      </div>
                     ))}
                   </div>
-                  <button onClick={() => setCreatedCodes([])} className="text-gray-500 text-xs mt-2 hover:text-gray-300">Đóng</button>
                 </div>
               )}
+            </div>
+
+            {/* Filter + actions bar */}
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <input
+                value={redeemSearch}
+                onChange={(e) => { setRedeemSearch(e.target.value.toUpperCase()); setRedeemPage(1); }}
+                placeholder="🔍 Tìm theo code..."
+                className="bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm w-64 font-mono uppercase tracking-wider"
+              />
+              <select
+                value={redeemStatus}
+                onChange={(e) => { setRedeemStatus(e.target.value as typeof redeemStatus); setRedeemPage(1); }}
+                className="bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="unused">Chưa dùng</option>
+                <option value="used">Đã dùng</option>
+                <option value="expired">Hết hạn</option>
+              </select>
+              <span className="text-gray-500 text-xs ml-2">{redeemTotal} mã</span>
+              <div className="flex-1" />
+              <button onClick={cleanupExpiredCodes}
+                className="text-xs text-yellow-400 hover:text-yellow-300 border border-yellow-800/40 hover:bg-yellow-900/20 px-3 py-2 rounded-lg">
+                🗑 Dọn mã hết hạn
+              </button>
+              <button onClick={deleteAllUnusedCodes}
+                className="text-xs text-red-400 hover:text-red-300 border border-red-800/40 hover:bg-red-900/20 px-3 py-2 rounded-lg">
+                ⚠ Xóa tất cả mã chưa dùng
+              </button>
             </div>
 
             <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
               {loading ? (
                 <div className="flex items-center justify-center py-12"><div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>
               ) : redeemCodes.length === 0 ? (
-                <div className="text-center py-12 text-gray-600 text-sm">Chưa có mã nào</div>
+                <div className="text-center py-12 text-gray-600 text-sm">Không có mã nào khớp bộ lọc</div>
               ) : (
                 <table className="w-full text-sm">
                   <thead>
@@ -1107,6 +1192,20 @@ export default function AdminPage() {
                 </table>
               )}
             </div>
+
+            {redeemTotal > REDEEM_PAGE_SIZE && (
+              <div className="flex items-center justify-between mt-3 text-sm">
+                <span className="text-gray-500 text-xs">
+                  Trang {redeemPage} / {Math.ceil(redeemTotal / REDEEM_PAGE_SIZE)} · hiển thị {redeemCodes.length} / {redeemTotal} mã
+                </span>
+                <div className="flex gap-2">
+                  <button disabled={redeemPage <= 1} onClick={() => setRedeemPage(p => Math.max(1, p - 1))}
+                    className="px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed">‹ Trước</button>
+                  <button disabled={redeemPage >= Math.ceil(redeemTotal / REDEEM_PAGE_SIZE)} onClick={() => setRedeemPage(p => p + 1)}
+                    className="px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed">Sau ›</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
         {tab === "tcdmx" && (

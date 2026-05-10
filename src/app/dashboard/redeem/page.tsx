@@ -18,6 +18,9 @@ export default function RedeemPage() {
   const [balance, setBalance] = useState(0);
   const [redeemBalance, setRedeemBalance] = useState(0);
   const [redeemExpiresAt, setRedeemExpiresAt] = useState<string | null>(null);
+  const [redeemTotal, setRedeemTotal] = useState(0);
+  const [redeemUsed, setRedeemUsed] = useState(0);
+  const [redeemCount, setRedeemCount] = useState(0);
   const [activity, setActivity] = useState<Activity[]>([]);
 
   useEffect(() => {
@@ -25,8 +28,11 @@ export default function RedeemPage() {
       setBalance(d.balance || 0);
       setRedeemBalance(d.redeemBalance || 0);
       setRedeemExpiresAt(d.redeemExpiresAt || null);
+      setRedeemTotal(d.redeemTotal || 0);
+      setRedeemUsed(d.redeemUsed || 0);
+      setRedeemCount(d.redeemCount || 0);
       const redeems = (d.transactions || []).filter((t: Activity & { method: string }) => t.method === "redeem_code");
-      setActivity(redeems.slice(0, 5));
+      setActivity(redeems.slice(0, 10));
     });
   }, [msg]);
 
@@ -71,11 +77,30 @@ export default function RedeemPage() {
           </div>
           <div className="bg-gradient-to-r from-purple-800/60 to-purple-700/40 border border-purple-700/50 rounded-xl p-6 text-center">
             <div className="w-10 h-10 bg-purple-800/60 rounded-xl flex items-center justify-center text-xl mx-auto mb-2">🎁</div>
-            <p className="text-gray-300 text-xs mb-1">Số dư khuyến mãi</p>
+            <p className="text-gray-300 text-xs mb-1">Số dư khuyến mãi còn lại</p>
             <p className="text-white text-2xl font-bold">${redeemBalance.toFixed(2)}</p>
             {redeemExpiresAt && redeemBalance > 0 && (
               <p className="text-purple-300 text-[10px] mt-1">HSD: {new Date(redeemExpiresAt).toLocaleDateString("vi-VN")}</p>
             )}
+          </div>
+        </div>
+
+        {/* Redeem usage summary */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Tổng đã đổi</p>
+            <p className="text-white text-lg font-bold">${redeemTotal.toFixed(2)}</p>
+            <p className="text-gray-600 text-[10px] mt-0.5">{redeemCount} mã</p>
+          </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
+            <p className="text-[10px] text-orange-400 uppercase tracking-wider mb-1">Đã dùng</p>
+            <p className="text-orange-300 text-lg font-bold">${redeemUsed.toFixed(2)}</p>
+            <p className="text-gray-600 text-[10px] mt-0.5">{redeemTotal > 0 ? ((redeemUsed / redeemTotal) * 100).toFixed(0) : 0}%</p>
+          </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
+            <p className="text-[10px] text-purple-400 uppercase tracking-wider mb-1">Còn lại</p>
+            <p className="text-purple-300 text-lg font-bold">${redeemBalance.toFixed(2)}</p>
+            <p className="text-gray-600 text-[10px] mt-0.5">{redeemTotal > 0 ? ((redeemBalance / redeemTotal) * 100).toFixed(0) : 0}%</p>
           </div>
         </div>
 
