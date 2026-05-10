@@ -1405,50 +1405,6 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* Bank Transfer */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
-              <h3 className="text-white font-medium mb-4 flex items-center gap-2">🏦 {t.admin.payment.bankSection}</h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-gray-400 text-xs mb-1">{t.admin.payment.bankName}</label>
-                  <input
-                    value={paymentSettings.bank_name}
-                    onChange={e => setPaymentSettings(p => ({ ...p, bank_name: e.target.value }))}
-                    placeholder="e.g. Vietcombank, BIDV, MBBank..."
-                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-400 text-xs mb-1">{t.admin.payment.bankAccount}</label>
-                  <input
-                    value={paymentSettings.bank_account}
-                    onChange={e => setPaymentSettings(p => ({ ...p, bank_account: e.target.value }))}
-                    placeholder="e.g. 1234567890"
-                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm focus:border-purple-500 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-400 text-xs mb-1">{t.admin.payment.bankHolder}</label>
-                  <input
-                    value={paymentSettings.bank_holder}
-                    onChange={e => setPaymentSettings(p => ({ ...p, bank_holder: e.target.value }))}
-                    placeholder="e.g. NGUYEN VAN A"
-                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm focus:border-purple-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-400 text-xs mb-1">{t.admin.payment.bankContent}</label>
-                  <input
-                    value={paymentSettings.bank_content}
-                    onChange={e => setPaymentSettings(p => ({ ...p, bank_content: e.target.value }))}
-                    placeholder="e.g. NAPTIEN"
-                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm focus:border-purple-500 font-mono"
-                  />
-                  <p className="text-gray-600 text-xs mt-1">{t.admin.payment.bankContentHint}</p>
-                </div>
-              </div>
-            </div>
-
             {/* USDT */}
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 mb-4">
               <h3 className="text-white font-medium mb-4 flex items-center gap-2">🪙 {t.admin.payment.usdtSection}</h3>
