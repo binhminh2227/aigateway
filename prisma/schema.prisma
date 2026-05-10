@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id              String        @id @default(cuid())
+  email           String        @unique
+  password        String
+  name            String?
+  balance         Float         @default(0)
+  redeemBalance   Float         @default(0)
+  redeemExpiresAt DateTime?
+  role            String        @default("user")
+  banned          Boolean       @default(false)
+  dailyLimit      Float         @default(0)
+  planExpiresAt   DateTime?
+  currentPlanId   String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  apiKeys      ApiKey[]
+  transactions Transaction[]
+  usageLogs    UsageLog[]
+}
+
+model ApiKey {
+  id               String     @id @default(cuid())
+  name             String
+  key              String     @unique
+  keyHash          String?    @unique
+  keyPrefix        String?
+  userId           String
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status           String     @default("active")
+  lastUsed         DateTime?
+  createdAt        DateTime   @default(now())
+  group            String?
+  ipWhitelist      String?
+  ipBlacklist      String?
+  quotaLimit       Float?
+  rateLimitEnabled Boolean    @default(false)
+  limit5h          Float?
+  limitDaily       Float?
+  limit7d          Float?
+  expiresAt        DateTime?
+  usageLogs        UsageLog[]
+}
+
+model Transaction {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Float
+  type      String
+  method    String?
+  status    String    @default("pending")
+  note      String?
+  proofUrl  String?
+  payCode   String?
+  expiresAt DateTime?
+  planId    String?
+  createdAt DateTime  @default(now())
+
+  @@index([payCode])
+  @@index([userId, status])
+}
+
+model UsageLog {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiKeyId     String
+  apiKey       ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  model        String
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  cachedTokens Int      @default(0)
+  cost         Float    @default(0)
+  tcdmxCost    Float    @default(0)
+  createdAt    DateTime @default(now())
+}
+
+model RedeemCode {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  amount    Float
+  note      String?
+  usedBy    String?
+  usedAt    DateTime?
+  expiresAt DateTime?
+  creditDays Int?
+  createdAt DateTime  @default(now())
+  createdBy String?
+}
+
+model TcdmxKey {
+  id         String    @id @default(cuid())
+  key        String
+  keyHash    String?   @unique
+  keyPrefix  String?
+  label      String?
+  provider   String    @default("tcdmx")
+  status     String    @default("active")
+  lastUsed   DateTime?
+  errorCount Int       @default(0)
+  createdAt  DateTime  @default(now())
+}
+
+model ModelPricing {
+  id               String   @id @default(cuid())
+  model            String   @unique
+  inputPrice       Float
+  outputPrice      Float
+  tcdmxInputPrice  Float    @default(0)
+  tcdmxOutputPrice Float    @default(0)
+  tcdmxCachePrice  Float    @default(0)
+  tcdmxTier        Float    @default(2.0)
+  flatCostPerCall  Float?
+  markup           Float    @default(1.3)
+  enabled          Boolean  @default(true)
+  updatedAt        DateTime @updatedAt
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model VerificationCode {
+  id        String   @id @default(cuid())
+  email     String
+  codeHash  String
+  purpose   String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email, purpose])
+}
+
+model Plan {
+  id          String   @id @default(cuid())
+  name        String
+  price       Float
+  duration    Int
+  dailyLimit  Float    @default(0)
+  concurrencyLimit Int @default(5)
+  description String?
+  features    String
+  enabled     Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
