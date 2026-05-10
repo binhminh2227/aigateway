@@ -27,6 +27,7 @@ interface ApiKey {
 interface UsageStat {
   today: number;
   last30d: number;
+  total: number;
 }
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -56,17 +57,27 @@ interface CreateFormData {
   expirationDate: string;
 }
 
-function CreateKeyModal({ onClose, onCreate }: { onClose: () => void; onCreate: (data: CreateFormData) => Promise<void> }) {
+function CreateKeyModal({ onClose, onSubmit, mode = "create", initial }: { onClose: () => void; onSubmit: (data: CreateFormData) => Promise<void>; mode?: "create" | "edit"; initial?: ApiKey }) {
   const { t } = useLang();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [form, setForm] = useState<CreateFormData>({
-    name: "", group: "", customKeyEnabled: false, customKeyValue: "",
-    ipRestriction: false, ipWhitelist: "", ipBlacklist: "",
-    quotaLimit: "", rateLimitEnabled: false,
-    limit5h: "0", limitDaily: "0", limit7d: "0",
-    expirationEnabled: false, expirationDays: 30, expirationDate: "",
-  });
+  const [form, setForm] = useState<CreateFormData>(() => ({
+    name: initial?.name || "",
+    group: initial?.group || "",
+    customKeyEnabled: false,
+    customKeyValue: "",
+    ipRestriction: !!(initial?.ipWhitelist || initial?.ipBlacklist),
+    ipWhitelist: initial?.ipWhitelist || "",
+    ipBlacklist: initial?.ipBlacklist || "",
+    quotaLimit: initial?.quotaLimit ? String(initial.quotaLimit) : "",
+    rateLimitEnabled: !!initial?.rateLimitEnabled,
+    limit5h: initial?.limit5h ? String(initial.limit5h) : "0",
+    limitDaily: initial?.limitDaily ? String(initial.limitDaily) : "0",
+    limit7d: initial?.limit7d ? String(initial.limit7d) : "0",
+    expirationEnabled: !!initial?.expiresAt,
+    expirationDays: 30,
+    expirationDate: initial?.expiresAt ? new Date(initial.expiresAt).toISOString().slice(0, 16) : "",
+  }));
 
   function set<K extends keyof CreateFormData>(k: K, v: CreateFormData[K]) {
     setForm(p => ({ ...p, [k]: v }));
@@ -77,8 +88,8 @@ function CreateKeyModal({ onClose, onCreate }: { onClose: () => void; onCreate: 
     if (!form.name.trim()) { setError("Name is required"); return; }
     if (form.customKeyEnabled && form.customKeyValue.trim().length < 16) { setError("Custom key must be at least 16 characters"); return; }
     setSaving(true); setError("");
-    try { await onCreate(form); onClose(); }
-    catch (err: unknown) { setError(err instanceof Error ? err.message : "Failed to create key"); }
+    try { await onSubmit(form); onClose(); }
+    catch (err: unknown) { setError(err instanceof Error ? err.message : "Failed to save key"); }
     finally { setSaving(false); }
   }
 
@@ -88,7 +99,7 @@ function CreateKeyModal({ onClose, onCreate }: { onClose: () => void; onCreate: 
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-800">
-          <h2 className="text-white font-semibold text-lg">{t.createModal.title}</h2>
+          <h2 className="text-white font-semibold text-lg">{mode === "edit" ? "Sửa API Key" : t.createModal.title}</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-800">✕</button>
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
@@ -114,7 +125,7 @@ function CreateKeyModal({ onClose, onCreate }: { onClose: () => void; onCreate: 
           </div>
 
           {/* Custom Key */}
-          <div>
+          {mode === "create" && <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-white text-sm font-medium">Custom Key</label>
               <Toggle checked={form.customKeyEnabled} onChange={v => set("customKeyEnabled", v)} />
@@ -127,7 +138,7 @@ function CreateKeyModal({ onClose, onCreate }: { onClose: () => void; onCreate: 
                 <p className="text-gray-500 text-xs mt-1">Only letters, numbers, underscores and hyphens allowed. Minimum 16 characters.</p>
               </div>
             )}
-          </div>
+          </div>}
 
           {/* IP Restriction */}
           <div>
@@ -228,7 +239,7 @@ function CreateKeyModal({ onClose, onCreate }: { onClose: () => void; onCreate: 
           <div className="flex gap-3 pt-2 border-t border-gray-800">
             <button type="button" onClick={onClose} className="flex-1 border border-gray-700 text-gray-300 hover:text-white py-2.5 rounded-lg text-sm">{t.createModal.cancel}</button>
             <button type="submit" disabled={saving} className="flex-1 bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white py-2.5 rounded-lg text-sm font-medium">
-              {saving ? t.createModal.creating : t.createModal.create}
+              {saving ? (mode === "edit" ? "Đang lưu..." : t.createModal.creating) : (mode === "edit" ? "Lưu" : t.createModal.create)}
             </button>
           </div>
         </form>
@@ -374,6 +385,7 @@ export default function ApiKeysPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [useKeyModal, setUseKeyModal] = useState<ApiKey | null>(null);
+  const [editKeyModal, setEditKeyModal] = useState<ApiKey | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [groupFilter, setGroupFilter] = useState("all");
@@ -394,10 +406,11 @@ export default function ApiKeysPage() {
     const d30 = new Date(Date.now() - 30 * 864e5);
     for (const log of (billing.usageLogs || [])) {
       const keyId = log.apiKeyId;
-      if (!stats[keyId]) stats[keyId] = { today: 0, last30d: 0 };
+      if (!stats[keyId]) stats[keyId] = { today: 0, last30d: 0, total: 0 };
       const t = new Date(log.createdAt);
       if (t >= today) stats[keyId].today += log.cost;
       if (t >= d30) stats[keyId].last30d += log.cost;
+      stats[keyId].total += log.cost;
     }
     setUsageStats(stats);
     setLoading(false);
@@ -426,6 +439,29 @@ export default function ApiKeysPage() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Failed to create key");
     setKeys(prev => [data, ...prev]);
+  }
+
+  async function updateKey(id: string, form: CreateFormData) {
+    const expiresAt = form.expirationEnabled && form.expirationDate ? form.expirationDate : null;
+    const res = await fetch("/api/keys", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id,
+        name: form.name.trim(),
+        group: form.group.trim() || null,
+        ipWhitelist: form.ipRestriction ? form.ipWhitelist : null,
+        ipBlacklist: form.ipRestriction ? form.ipBlacklist : null,
+        quotaLimit: parseFloat(form.quotaLimit) || 0,
+        rateLimitEnabled: form.rateLimitEnabled,
+        limit5h: parseFloat(form.limit5h) || 0,
+        limitDaily: parseFloat(form.limitDaily) || 0,
+        limit7d: parseFloat(form.limit7d) || 0,
+        expiresAt,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to update key");
+    setKeys(prev => prev.map(k => k.id === id ? { ...k, ...data } : k));
   }
 
   async function toggleKey(id: string, current: string) {
@@ -460,7 +496,8 @@ export default function ApiKeysPage() {
   return (
     <div>
       {useKeyModal && <UseKeyModal apiKey={useKeyModal} onClose={() => setUseKeyModal(null)} />}
-      {showCreateModal && <CreateKeyModal onClose={() => setShowCreateModal(false)} onCreate={createKey} />}
+      {showCreateModal && <CreateKeyModal onClose={() => setShowCreateModal(false)} onSubmit={createKey} />}
+      {editKeyModal && <CreateKeyModal mode="edit" initial={editKeyModal} onClose={() => setEditKeyModal(null)} onSubmit={(f) => updateKey(editKeyModal.id, f)} />}
 
       <div className="flex items-center justify-between mb-5">
         <div>
@@ -535,9 +572,9 @@ export default function ApiKeysPage() {
               </thead>
               <tbody className="divide-y divide-gray-800">
                 {filtered.map(k => {
-                  const stat = usageStats[k.id] || { today: 0, last30d: 0 };
+                  const stat = usageStats[k.id] || { today: 0, last30d: 0, total: 0 };
                   const quota = k.quotaLimit ?? 0;
-                  const quotaUsed = stat.last30d;
+                  const quotaUsed = stat.total;
                   const quotaPct = quota > 0 ? Math.min(100, (quotaUsed / quota) * 100) : 0;
                   return (
                     <tr key={k.id} className="hover:bg-gray-800/30">
@@ -578,7 +615,7 @@ export default function ApiKeysPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-4 text-gray-500 text-xs">{t.keys.never}</td>
+                      <td className="px-4 py-4 text-gray-500 text-xs">{k.expiresAt ? new Date(k.expiresAt).toLocaleString("vi-VN") : t.keys.never}</td>
                       <td className="px-4 py-4">
                         <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium ${
                           k.status === "active" ? "bg-green-900/30 text-green-400 border border-green-800/50" : "bg-gray-800 text-gray-500 border border-gray-700"
@@ -596,6 +633,11 @@ export default function ApiKeysPage() {
                             className="flex flex-col items-center gap-0.5 text-gray-400 hover:text-teal-400 transition-colors group">
                             <span className="text-base border border-gray-700 group-hover:border-teal-600 rounded p-1">⊡</span>
                             <span className="text-[10px]">{t.keys.useKey}</span>
+                          </button>
+                          <button onClick={() => setEditKeyModal(k)}
+                            className="flex flex-col items-center gap-0.5 text-gray-400 hover:text-blue-400 transition-colors">
+                            <span className="text-base">✎</span>
+                            <span className="text-[10px]">Sửa</span>
                           </button>
                           <button onClick={() => toggleKey(k.id, k.status)}
                             className="flex flex-col items-center gap-0.5 text-gray-400 hover:text-yellow-400 transition-colors">
