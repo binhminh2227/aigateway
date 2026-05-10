@@ -108,7 +108,7 @@ export default function Home() {
               VI
             </button>
           </div>
-          <Link href="/dashboard/docs" className="text-gray-400 hover:text-white text-sm transition-colors hidden sm:block">{t.nav.docs}</Link>
+          <Link href="/docs" className="text-gray-400 hover:text-white text-sm transition-colors hidden sm:block">{t.nav.docs}</Link>
           <Link href="/login" className="text-gray-400 hover:text-white text-sm transition-colors">{t.nav.signin}</Link>
           <Link href="/register" className="bg-teal-600 hover:bg-teal-500 text-white text-sm px-4 py-2 rounded-lg transition-colors font-medium">{t.nav.start}</Link>
         </div>
@@ -129,7 +129,7 @@ export default function Home() {
           <Link href="/register" className="bg-teal-600 hover:bg-teal-500 text-white px-8 py-3.5 rounded-xl font-semibold text-base transition-colors shadow-lg shadow-teal-900/40">
             {t.hero.cta1}
           </Link>
-          <Link href="/dashboard/docs" className="border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white px-8 py-3.5 rounded-xl font-semibold text-base transition-colors">
+          <Link href="/docs" className="border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white px-8 py-3.5 rounded-xl font-semibold text-base transition-colors">
             {t.hero.cta2}
           </Link>
         </div>
@@ -231,7 +231,7 @@ print(response.choices[0].message.content)`}</pre>
         <div className="flex gap-4">
           <Link href="/terms" className="hover:text-gray-400 transition-colors">Điều khoản</Link>
           <Link href="/privacy" className="hover:text-gray-400 transition-colors">Bảo mật</Link>
-          <Link href="/dashboard/docs" className="hover:text-gray-400 transition-colors">{t.nav.docs}</Link>
+          <Link href="/docs" className="hover:text-gray-400 transition-colors">{t.nav.docs}</Link>
           <Link href="/login" className="hover:text-gray-400 transition-colors">{t.nav.signin}</Link>
         </div>
       </footer>

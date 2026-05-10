@@ -38,7 +38,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { href: "/dashboard/orders", label: t.nav.orders, icon: "📄" },
     { href: "/dashboard/redeem", label: t.nav.redeem, icon: "🎁" },
     { href: "/dashboard/profile", label: t.nav.profile, icon: "👤" },
-    { href: "/dashboard/docs", label: t.nav.docs, icon: "📖" },
+    { href: "/docs", label: t.nav.docs, icon: "📖" },
   ];
 
   useEffect(() => {
