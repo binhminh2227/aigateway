@@ -522,7 +522,7 @@ export async function POST(req: NextRequest) {
       "web2m_active_bank",
       "web2m_mb_token", "web2m_mb_password", "web2m_mb_account",
       "web2m_acb_token", "web2m_acb_password", "web2m_acb_account",
-      "usd_to_vnd", "price_markup", "default_concurrency",
+      "usd_to_vnd", "price_markup", "default_concurrency", "bank_manual_enabled",
     ]);
     if (!data.settings || typeof data.settings !== "object") {
       return NextResponse.json({ error: "Invalid settings payload" }, { status: 400 });
